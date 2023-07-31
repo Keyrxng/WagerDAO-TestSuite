@@ -1,5 +1,9 @@
 # WagerDAO-TestSuite
 
+## forge test --fork-url https://data-seed-prebsc-1-s1.binance.org:8545/ -vvv
+or
+## forge coverage --fork-url https://data-seed-prebsc-1-s1.binance.org:8545/
+
 | File                 | % Lines          | % Statements     | % Branches      | % Funcs         |
 |----------------------|------------------|------------------|-----------------|-----------------|
 | script/Counter.s.sol | 0.00% (0/1)      | 0.00% (0/1)      | 100.00% (0/0)   | 0.00% (0/2)     |
