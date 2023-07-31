@@ -1,8 +1,8 @@
 # WagerDAO-TestSuite
 
-## forge test --fork-url https://data-seed-prebsc-1-s1.binance.org:8545/ -vvv
+```forge test --fork-url https://data-seed-prebsc-1-s1.binance.org:8545/ -vvv```
 or
-## forge coverage --fork-url https://data-seed-prebsc-1-s1.binance.org:8545/
+```forge coverage --fork-url https://data-seed-prebsc-1-s1.binance.org:8545/```
 
 | File                 | % Lines          | % Statements     | % Branches      | % Funcs         |
 |----------------------|------------------|------------------|-----------------|-----------------|
