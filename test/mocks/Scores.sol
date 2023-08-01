@@ -1,276 +1,597 @@
-// // SPDX-License-Identifier: MIT
-// pragma solidity ^0.8.4;
+/**
+ *Submitted for verification at BscScan.com on 2023-04-02
+*/
 
-// import "@openzeppelin/token/ERC20/ERC20.sol";
-// import "@openzeppelin/access/Ownable.sol";
-// import "../../src/interfaces/IUniV2Factory.sol";
-// import "../../src/interfaces/IUniV2Router.sol";
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.18;
 
+interface IUniswapV2Factory {
+function getPair(address tokenA, address tokenB) external view returns (address pair);
+function createPair(address tokenA, address tokenB) external returns (address pair);
+}
 
-// contract Scores is ERC20, Ownable {
+interface IUniswapV2Router02 {
+function factory() external pure returns (address);
+function WETH() external pure returns (address);
 
-//     string public _name = "Scores";
-//     string public _symbol = "SCORE";
-//     uint8 public _decimals = 9;
-//     uint256 public _supply = 1_000_000_000 * 10**_decimals;
-//     // Anti-Bot / Will be lowered after launch
-//     uint256 public taxForLiquidity = 47;
-//     // Anti-Bot / Will be lowered after launch
-//     uint256 public taxForTreasury = 47; 
-//     uint256 public maxTxAmount = 10000001 * 10**_decimals;
-//     uint256 public maxWalletAmount = 10000001 * 10**_decimals;
-//     address public treasuryWallet;
-//     address public DEAD = 0x000000000000000000000000000000000000dEaD;
-//     uint256 public _treasuryReserves = 0;
-//     mapping(address => bool) public _isExcludedFromFee;
-//     uint256 public numTokensSellToAddToLiquidity = 200000 * 10**_decimals;
-//     uint256 public numTokensSellToAddToETH = 100000 * 10**_decimals;
+function addLiquidity(
+    address tokenA,
+    address tokenB,
+    uint amountADesired,
+    uint amountBDesired,
+    uint amountAMin,
+    uint amountBMin,
+    address to,
+    uint deadline
+) external returns (uint amountA, uint amountB, uint liquidity);
 
-//     function postLaunch() external onlyOwner {
-//         taxForLiquidity = 1;
-//         taxForTreasury = 2;
-//         maxTxAmount = 10000001 * 10**_decimals;
-//         maxWalletAmount = 10000001 * 10**_decimals;
-//     }
+function addLiquidityETH(
+    address token,
+    uint amountTokenDesired,
+    uint amountTokenMin,
+    uint amountETHMin,
+    address to,
+    uint deadline
+) external payable returns (uint amountToken, uint amountETH, uint liquidity);
 
-//     IUniswapV2Router02 public immutable uniswapV2Router;
-//     address public uniswapV2Pair;
+function swapExactTokensForETHSupportingFeeOnTransferTokens(
+    uint amountIn,
+    uint amountOutMin,
+    address[] calldata path,
+    address to,
+    uint deadline
+) external;
+}
+
+interface IERC20 {
+event Transfer(address indexed from, address indexed to, uint256 value);
+event Approval(address indexed owner, address indexed spender, uint256 value);
+function totalSupply() external view returns (uint256);
+function balanceOf(address account) external view returns (uint256);
+function transfer(address to, uint256 amount) external returns (bool);
+function allowance(address owner, address spender) external view returns (uint256);
+function approve(address spender, uint256 amount) external returns (bool);
+function transferFrom(
+    address from,
+    address to,
+    uint256 amount
+) external returns (bool);
+}
+
+interface IERC20Metadata is IERC20 {
+function name() external view returns (string memory);
+function symbol() external view returns (string memory);
+function decimals() external view returns (uint8);
+}
+
+abstract contract Context {
+function _msgSender() internal view virtual returns (address) {
+    return msg.sender;
+}
+function _msgData() internal view virtual returns (bytes calldata) {
+    this;
+    return msg.data;
+}
+}
+
+contract Ownable is Context {
+
+address private _owner;
+event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+constructor () {
+    address msgSender = _msgSender();
+    _owner = msgSender;
+    emit OwnershipTransferred(address(0), msgSender);
+}
+
+function owner() public view returns (address) {
+    return _owner;
+}   
+
+modifier onlyOwner() {
+    require(_owner == _msgSender(), "Ownable: caller is not the owner");
+    _;
+}
+
+function renounceOwnership() public virtual onlyOwner {
+    emit OwnershipTransferred(_owner, address(0));
+    _owner = address(0);
+}
+
+function transferOwnership(address newOwner) public virtual onlyOwner {
+    require(newOwner != address(0), "Ownable: new owner is the zero address");
+    emit OwnershipTransferred(_owner, newOwner);
+    _owner = newOwner;
+}
+
+function getTime() public view returns (uint256) {
+    return block.timestamp;
+}
+}
+
+contract ERC20 is Context, IERC20, IERC20Metadata {
+mapping(address => uint256) internal _balances;
+
+mapping(address => mapping(address => uint256)) private _allowances;
+
+uint256 private _totalSupply;
+
+string private _name;
+string private _symbol;
+
+constructor(string memory name_, string memory symbol_) {
+    _name = name_;
+    _symbol = symbol_;
+}
+
+function name() public view virtual override returns (string memory) {
+    return _name;
+}
+
+function symbol() public view virtual override returns (string memory) {
+    return _symbol;
+}
+
+function decimals() public view virtual override returns (uint8) {
+    return 9;
+}
+
+function totalSupply() public view virtual override returns (uint256) {
+    return _totalSupply;
+}
+
+function balanceOf(address account) public view virtual override returns (uint256) {
+    return _balances[account];
+}
+
+function transfer(address to, uint256 amount) public virtual override returns (bool) {
+    address owner = _msgSender();
+    _transfer(owner, to, amount);
+    return true;
+}
+
+function allowance(address owner, address spender) public view virtual override returns (uint256) {
+    return _allowances[owner][spender];
+}
+
+function approve(address spender, uint256 amount) public virtual override returns (bool) {
+    address owner = _msgSender();
+    _approve(owner, spender, amount);
+    return true;
+}
+
+function transferFrom(
+    address from,
+    address to,
+    uint256 amount
+) public virtual override returns (bool) {
+    address spender = _msgSender();
+    _spendAllowance(from, spender, amount);
+    _transfer(from, to, amount);
+    return true;
+}
+
+function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
+    address owner = _msgSender();
+    _approve(owner, spender, allowance(owner, spender) + addedValue);
+    return true;
+}
+
+function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
+    address owner = _msgSender();
+    uint256 currentAllowance = allowance(owner, spender);
+    require(currentAllowance >= subtractedValue, "ERC20: decreased allowance below zero");
+    unchecked {
+        _approve(owner, spender, currentAllowance - subtractedValue);
+    }
+
+    return true;
+}
+
+function _transfer(
+    address from,
+    address to,
+    uint256 amount
+) internal virtual {
+    require(from != address(0), "ERC20: transfer from the zero address");
+    require(to != address(0), "ERC20: transfer to the zero address");
+
+    _beforeTokenTransfer(from, to, amount);
+
+    uint256 fromBalance = _balances[from];
+    require(fromBalance >= amount, "ERC20: transfer amount exceeds balance");
+    unchecked {
+        _balances[from] = fromBalance - amount;
+    }
+    _balances[to] += amount;
+
+    emit Transfer(from, to, amount);
+
+    _afterTokenTransfer(from, to, amount);
+}
+
+function _mint(address account, uint256 amount) internal virtual {
+    require(account != address(0), "ERC20: mint to the zero address");
+
+    _beforeTokenTransfer(address(0), account, amount);
+
+    _totalSupply += amount;
+    _balances[account] += amount;
+    emit Transfer(address(0), account, amount);
+
+    _afterTokenTransfer(address(0), account, amount);
+}
+
+function _burn(address account, uint256 amount) internal virtual {
+    require(account != address(0), "ERC20: burn from the zero address");
+
+    _beforeTokenTransfer(account, address(0), amount);
+
+    uint256 accountBalance = _balances[account];
+    require(accountBalance >= amount, "ERC20: burn amount exceeds balance");
+    unchecked {
+        _balances[account] = accountBalance - amount;
+    }
+    _totalSupply -= amount;
+
+    emit Transfer(account, address(0), amount);
+
+    _afterTokenTransfer(account, address(0), amount);
+}
+
+function _approve(
+    address owner,
+    address spender,
+    uint256 amount
+) internal virtual {
+    require(owner != address(0), "ERC20: approve from the zero address");
+    require(spender != address(0), "ERC20: approve to the zero address");
+
+    _allowances[owner][spender] = amount;
+    emit Approval(owner, spender, amount);
+}
+
+function _spendAllowance(
+    address owner,
+    address spender,
+    uint256 amount
+) internal virtual {
+    uint256 currentAllowance = allowance(owner, spender);
+    if (currentAllowance != type(uint256).max) {
+        require(currentAllowance >= amount, "ERC20: insufficient allowance");
+        unchecked {
+            _approve(owner, spender, currentAllowance - amount);
+        }
+    }
+}
+
+function _beforeTokenTransfer(
+    address from,
+    address to,
+    uint256 amount
+) internal virtual {}
+
+function _afterTokenTransfer(
+    address from,
+    address to,
+    uint256 amount
+) internal virtual {}
+}
+
+contract Scores is ERC20, Ownable {
+
+string private _name = "Scores";
+string private _symbol = "SCORE";
+uint256 private _supply = 1000000000 * 1e9;
+
+// Anti-Bot / Will be lowered after launch
+uint256 private buyTaxes = 470;
+uint256 private sellTaxes = 470; 
+uint256 private divider = 1000;
+
+uint256 public maxTxAmount = 10000001 * 1e9;
+uint256 public maxWalletAmount = 10000001 * 1e9;
+address private treasuryWallet;
+address private DEAD = 0x000000000000000000000000000000000000dEaD;
+
+mapping(address => bool) private _isExcludedFromFee;
+mapping(address => bool) private canTransferBeforeLaunch;
+
+// Auto swap settings
+uint256 public swapThrehold = 200000 * 1e9;
+uint256 private treasuryShare = 70;
+uint256 private liquidityShare = 30;
+bool private autoSwapEnabled = true;
+bool public isItLaunched = false;
+
+// Tokens distribution
+
+address private member1;
+address public member2 = 0x00924B7aBD93537237E10aA581F5155403e6fA54;
+address public member3 = 0x65CaB1072FabA6Cd5186830e166E3755A18314E6;
+address public member4 = 0x04f9e1Db3938A0Db73c75641046926d1096605b4;
+address public member5 = 0xa7716873Ad29A85072aa463AcD469354eD3889a6;
+address public member6 = 0xE75A41fdD1BeB91cD60b9A14dBDa44aA65baF264;
+
+IUniswapV2Router02 public uniswapV2Router;
+address public uniswapV2Pair;
+
+bool inSwapAndLiquify;
+
+event SwapAndLiquify(
+    uint256 tokensSwapped,
+    uint256 ethReceived,
+    uint256 tokensIntoLiqudity
+);
+
+modifier lockTheSwap() {
+    inSwapAndLiquify = true;
+    _;
+    inSwapAndLiquify = false;
+}
+
+constructor(address _treasury) ERC20(_name, _symbol) {
+    IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0xD99D1c33F9fC3444f8101754aBC46c52416550D1); //eth mainnet 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
+    uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory()).createPair(address(this), _uniswapV2Router.WETH());
+    uniswapV2Router = _uniswapV2Router;
+    approve(address(uniswapV2Router), type(uint256).max);
+    treasuryWallet =_treasury;
+    member1 = msg.sender;
+    _isExcludedFromFee[address(uniswapV2Router)] = true;
+    _isExcludedFromFee[msg.sender] = true;
+    _isExcludedFromFee[treasuryWallet] = true;
+    canTransferBeforeLaunch[msg.sender] = true;
+    _mint(msg.sender, _supply);
+}
+
+function _transfer(address from, address to, uint256 amount) internal override {
+    require(from != address(0), "ERC20: transfer from the zero address");
+    require(to != address(0), "ERC20: transfer to the zero address");
+    require(balanceOf(from) >= amount, "ERC20: transfer amount exceeds balance");
+
+    if(!isItLaunched) {
+        require(canTransferBeforeLaunch[from] || canTransferBeforeLaunch[to],
+        "Not launched yet.");
+    }
+
+    if ((from == uniswapV2Pair || to == uniswapV2Pair) && !inSwapAndLiquify) {
+
+        uint256 transferAmount;
+        uint256 taxAmount = 0;
+
+        if (to == uniswapV2Pair) {
+            uint256 contractBalances = balanceOf(address(this));
+            if(autoSwapEnabled && (contractBalances >= swapThrehold)) {
+                swapTokensForEthWithShares(swapThrehold);
+            }
+        }
+
+        if (_isExcludedFromFee[from] || _isExcludedFromFee[to]) {
+            transferAmount = amount;
+        } else {
+            if(from == uniswapV2Pair) {
+                require((amount + balanceOf(to)) <= maxWalletAmount, "ERC20: balance amount exceeded max wallet amount limit");
+                require(amount <= maxTxAmount, "ERC20: transfer amount exceeds the max transaction amount");
+                taxAmount = amount * buyTaxes / divider;
+            } else if (to == uniswapV2Pair) {
+                taxAmount = amount * sellTaxes / divider;
+            }
+
+            transferAmount = amount - taxAmount;
+            super._transfer(from, address(this), taxAmount);
+        }
+
+        super._transfer(from, to, transferAmount);
+
+    } else {
+        super._transfer(from, to, amount);
+    }
+}
+
+function swapTokensForEthWithShares(uint256 tokenAmount) private lockTheSwap {
+
+    if(tokenAmount == 0) {
+        return;
+    }
+
+    uint256 currentContractBalance = balanceOf(address(this));
+    if(tokenAmount > currentContractBalance) {
+        tokenAmount = currentContractBalance;
+    }
+
+    uint256 tokensForLiquidity = tokenAmount * liquidityShare / 100;
+    uint256 tokensForTreasury = tokenAmount * treasuryShare / 100;
+
+    if(tokensForTreasury > 0) {
+        distributeTeamTokens(tokensForTreasury);
+    }
+
+    if(tokensForLiquidity > 0) {
+       swapAndAddLiquidity(tokensForLiquidity);
+    }
+}
+
+function distributeTeamTokens(uint256 tokenAmount) private {
+
+    if(tokenAmount == 0) {
+        return;
+    }
+
+    uint256 teamAllocation = tokenAmount * 60 / 100; // Allocate 60% of tokenAmount to team members.
+    uint256 memberShare =  teamAllocation / 6; // Split teamAllocation equally between all members.
+    uint256 shareForTreasury = tokenAmount - teamAllocation; // Allocate the remaining 40% to treasury contract.
     
-//     bool inSwapAndLiquify;
+    _balances[address(this)] -= tokenAmount;
+    _balances[member1] += memberShare;
+    _balances[member2] += memberShare;
+    _balances[member3] += memberShare;
+    _balances[member4] += memberShare;
+    _balances[member5] += memberShare;
+    _balances[member6] += memberShare;
+    _balances[treasuryWallet] += shareForTreasury;
+    // Include event only for treasury transfer and omit events for team distribution to save gas.
+    emit Transfer(address(this), treasuryWallet, shareForTreasury);
+}
 
-//     event SwapAndLiquify(
-//         uint256 tokensSwapped,
-//         uint256 ethReceived,
-//         uint256 tokensIntoLiqudity
-//     );
+//Swap tokens for ETH and add to liquidity
+function swapAndAddLiquidity(uint256 tokenAmount) private {
+    uint256 half = tokenAmount / 2;
+    uint256 otherHalf = tokenAmount - half;
+    uint256 initialBalance = address(this).balance;
+    _swapTokensForEth(half);
+    uint256 newBalance = address(this).balance - initialBalance;
+    _addLiquidity(otherHalf, newBalance);
 
-//     modifier lockTheSwap() {
-//         inSwapAndLiquify = true;
-//         _;
-//         inSwapAndLiquify = false;
-//     }
+    emit SwapAndLiquify(half, newBalance, otherHalf);
+}
 
-//     event PairUpdated(address _newPair);
-//     event ExcludedFromFeeUpdated(address _address, bool _isExcluded);
+//Swap tokens for ETH
+function _swapTokensForEth(uint256 tokenAmount) private lockTheSwap {
+    address[] memory path = new address[](2);
+    path[0] = address(this);
+    path[1] = uniswapV2Router.WETH();
 
-//     error ZeroInput();
-//     /**
-//      * @dev Sets the values for {name} and {symbol}.
-//      *
-//      * The default value of {decimals} is 18. To select a different value for
-//      * {decimals} you should overload it.
-//      *
-//      * All two of these values are immutable: they can only be set once during
-//      * construction.
-//      */
-//     constructor() ERC20(_name, _symbol) {
-//         _mint(msg.sender, (_supply));
+    _approve(address(this), address(uniswapV2Router), tokenAmount);
 
-//         IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D); //eth mainnet
-//         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory()).createPair(address(this), _uniswapV2Router.WETH());
+    uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+        tokenAmount,
+        0,
+        path,
+        address(this),
+        block.timestamp
+    );
+}
 
-//         uniswapV2Router = _uniswapV2Router;
+function _addLiquidity(uint256 tokenAmount, uint256 ethAmount) private lockTheSwap {
+    _approve(address(this), address(uniswapV2Router), tokenAmount);
 
-//         _isExcludedFromFee[address(uniswapV2Router)] = true;
-//         _isExcludedFromFee[msg.sender] = true;
-//         _isExcludedFromFee[treasuryWallet] = true;
-//     }
+    uniswapV2Router.addLiquidityETH{value: ethAmount}(
+        address(this),
+        tokenAmount,
+        0,
+        0,
+        treasuryWallet,
+        block.timestamp
+    );
+}
 
-//     function updatePair(address _pair) external onlyOwner {
-//         require(_pair != DEAD, "LP Pair cannot be the Dead wallet, or 0!");
-//         require(_pair != address(0), "LP Pair cannot be the Dead wallet, or 0!");
-//         uniswapV2Pair = _pair;
-//         emit PairUpdated(_pair);
-//     }
 
-//     /**
-//      * @dev Moves `amount` of tokens from `from` to `to`.
-//      *
-//      * This internal function is equivalent to {transfer}, and can be used to
-//      * e.g. implement automatic token fees, slashing mechanisms, etc.
-//      *
-//      * Emits a {Transfer} event.
-//      *
-//      * Requirements:
-//      *
-//      *
-//      * - `from` cannot be the zero address.
-//      * - `to` cannot be the zero address.
-//      * - `from` must have a balance of at least `amount`.
-//      */
-//     function _transfer(address from, address to, uint256 amount) internal override {
-//         require(from != address(0), "ERC20: transfer from the zero address");
-//         require(to != address(0), "ERC20: transfer to the zero address");
-//         require(balanceOf(from) >= amount, "ERC20: transfer amount exceeds balance");
-//         if(amount == 0){
-//             revert ZeroInput();
-//         }
-        
-//         if ((from == uniswapV2Pair || to == uniswapV2Pair) && !inSwapAndLiquify) {
-//             if (from != uniswapV2Pair) {
-//                 uint256 contractLiquidityBalance = balanceOf(address(this)) - _treasuryReserves;
-//                 if (contractLiquidityBalance >= numTokensSellToAddToLiquidity) {
-//                     _swapAndLiquify(numTokensSellToAddToLiquidity);
-//                 }
-//                 if ((_treasuryReserves) >= numTokensSellToAddToETH) {
-//                     _swapTokensForEth(numTokensSellToAddToETH);
-//                     _treasuryReserves -= numTokensSellToAddToETH;
-//                     bool sent = payable(treasuryWallet).send(address(this).balance);
-//                     require(sent, "Failed to send ETH");
-//                 }
-//             }
+// Read functions
 
-//             uint256 transferAmount;
-//             if (_isExcludedFromFee[from] || _isExcludedFromFee[to]) {
-//                 transferAmount = amount;
-//             } 
-//             else {
-//                 require(amount <= maxTxAmount, "ERC20: transfer amount exceeds the max transaction amount");
-//                 if(from == uniswapV2Pair){
-//                     require((amount + balanceOf(to)) <= maxWalletAmount, "ERC20: balance amount exceeded max wallet amount limit");
-//                 }
+function currentTaxes() public view returns(uint256 buyTax, uint256 sellTax) {
+    return(buyTaxes, sellTaxes);
+}
 
-//                 uint256 treasuryShare = ((amount * taxForTreasury) / 100);
-//                 uint256 liquidityShare = ((amount * taxForLiquidity) / 100);
-//                 transferAmount = amount - (treasuryShare + liquidityShare);
-//                 _treasuryReserves += treasuryShare;
+function currentLimits() public view returns(uint256 maxWallet, uint256 maxTx) {
+    return(maxWalletAmount, maxTxAmount);
+}
 
-//                 super._transfer(from, address(this), (treasuryShare + liquidityShare));
-//             }
-//             super._transfer(from, to, transferAmount);
-//         } 
-//         else {
-//             super._transfer(from, to, amount);
-//         }
-//     }
+function currentTreasury() public view returns(address currentTreasuryWallet) {
+    return(treasuryWallet);
+}
 
-//     function excludeFromFee(address _address, bool _status) external onlyOwner {
-//         _isExcludedFromFee[_address] = _status;
-//         emit ExcludedFromFeeUpdated(_address, _status);
-//     }
-//     //Swap tokens for ETH and add to liquidity
-//     function _swapAndLiquify(uint256 contractTokenBalance) private lockTheSwap {
-//         uint256 half = (contractTokenBalance / 2);
-//         uint256 otherHalf = (contractTokenBalance - half);
+function currentSwapSettings() public view returns(bool autoSwap, uint256 tresholdForSwap, uint256 shareForTreasury, uint256 shareForLiquidity) {
+    return(autoSwapEnabled, swapThrehold, treasuryShare, liquidityShare);
+}
 
-//         uint256 initialBalance = address(this).balance;
+function isExcludedFromRestrictions(address who) public view returns (bool feesExcluded, bool canDoPrelaunchTransfer) {
+    return(_isExcludedFromFee[who], canTransferBeforeLaunch[who]);
+}
 
-//         _swapTokensForEth(half);
+// Owner only functions
 
-//         uint256 newBalance = (address(this).balance - initialBalance);
+function preLaunchTransfer(address who, bool status) public onlyOwner {
+    canTransferBeforeLaunch[who] = status;
+}
 
-//         _addLiquidity(otherHalf, newBalance);
+function updatePair(address _pair) public onlyOwner {
+    require(_pair != DEAD, "LP Pair cannot be the Dead wallet, or 0!");
+    require(_pair != address(0), "LP Pair cannot be the Dead wallet, or 0!");
+    uniswapV2Pair = _pair;
+}
 
-//         emit SwapAndLiquify(half, newBalance, otherHalf);
-//     }
+function launch() external onlyOwner {
+    isItLaunched = true;
+}
 
-//     function _swapTokensForEth(uint256 tokenAmount) private lockTheSwap {
-//         address[] memory path = new address[](2);
-//         path[0] = address(this);
-//         path[1] = uniswapV2Router.WETH();
+function postLaunch() external onlyOwner {
+    buyTaxes = 30;
+    sellTaxes = 30;
+    maxTxAmount = 10_000_001 * 1e9;
+    maxWalletAmount = 10_000_001 * 1e9;
+}
 
-//         _approve(address(this), address(uniswapV2Router), tokenAmount);
+function manualSendToTreasury() public onlyOwner {
+    uint256 currentBalance = balanceOf(address(this));
+    super._transfer(address(this), treasuryWallet, currentBalance);
+}
 
-//         uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-//             tokenAmount,
-//             0,
-//             path,
-//             address(this),
-//             block.timestamp
-//         );
-//     }
+function withdrawETH() public onlyOwner {
+   (bool success, ) = payable(msg.sender).call{value: address(this).balance}("");
+   require(success, "ETH Transfer failed.");
+}
 
-//     function _addLiquidity(uint256 tokenAmount, uint256 ethAmount)
-//         private
-//         lockTheSwap
-//     {
-//         _approve(address(this), address(uniswapV2Router), tokenAmount);
+function changeTreasuryWallet(address newWallet) public onlyOwner {
+    require(newWallet != DEAD, "LP Pair cannot be the Dead wallet, or 0!");
+    require(newWallet != address(0), "LP Pair cannot be the Dead wallet, or 0!");
+    treasuryWallet = newWallet;
+}
 
-//         uniswapV2Router.addLiquidityETH{value: ethAmount}(
-//             address(this),
-//             tokenAmount,
-//             0,
-//             0,
-//             treasuryWallet,
-//             block.timestamp
-//         );
-//     }
+function changeTaxes(uint256 newBuyTax, uint256 newSellTax) public onlyOwner {
+    require((newBuyTax + newSellTax) <= 100, "ERC20: total tax must not be greater than 10%");
+    buyTaxes = newBuyTax;
+    sellTaxes = newSellTax;
+}
 
-//     function changeTreasuryWallet(address newWallet)
-//         public
-//         onlyOwner
-//         returns (bool)
-//     {
-//         require(newWallet != DEAD, "LP Pair cannot be the Dead wallet, or 0!");
-//         require(newWallet != address(0), "LP Pair cannot be the Dead wallet, or 0!");
-//         treasuryWallet = newWallet;
-//         return true;
-//     }
+function changeSwapSettings(bool autoSwap, uint256 tokensToSwap, uint256 treasuryPercent, uint256 liquidityPercent) public onlyOwner {
+    require((treasuryPercent + liquidityPercent) == 100, "Treasury + liquidy must be equal to 100.");
+    require(tokensToSwap >= 1, "Cannot set below 1 token.");
+    require(tokensToSwap < (_supply * 1 / 100) / 1e9, "Cannot liquidate more than 1% of the supply at once!");
 
-//     // @audit - Optimize this name > ChangeTax
-//     function changeTaxForLiquidityAndTreasury(uint256 _taxForLiquidity, uint256 _taxForTreasury)
-//         public
-//         onlyOwner
-//         returns (bool)
-//     {
-//         require((_taxForLiquidity+_taxForTreasury) <= 10, "ERC20: total tax must not be greater than 10%");
-//         taxForLiquidity = _taxForLiquidity;
-//         taxForTreasury = _taxForTreasury;
+    autoSwapEnabled = autoSwap;
+    swapThrehold = tokensToSwap * 1e9;
+    treasuryShare = treasuryPercent;
+    liquidityShare = liquidityPercent;
+}
 
-//         return true;
-//     }
+function excludeFromFee(address _address, bool _status) public onlyOwner {
+    _isExcludedFromFee[_address] = _status;
+}
 
-//     function changeSwapThresholds(uint256 _numTokensSellToAddToLiquidity, uint256 _numTokensSellToAddToETH)
-//         public
-//         onlyOwner
-//         returns (bool)
-//     {
-//         if(_numTokensSellToAddToLiquidity == 0 || _numTokensSellToAddToETH == 0){
-//             revert ZeroInput();
-//         }
+function changeMaxTxAmount(uint256 _maxTxAmount) public onlyOwner {
+    require(_maxTxAmount >= _supply / 1000, "Cannot set below 0.1% of total supply.");
+    maxTxAmount = _maxTxAmount;
+}
 
-//         require(_numTokensSellToAddToLiquidity < (totalSupply() / 100 * 2), "Cannot liquidate more than 2% of the supply at once!");
-//         require(_numTokensSellToAddToETH < (totalSupply() / 100 * 2), "Cannot liquidate more than 2% of the supply at once!");
-//         numTokensSellToAddToLiquidity = _numTokensSellToAddToLiquidity * 10**_decimals;
-//         numTokensSellToAddToETH = _numTokensSellToAddToETH * 10**_decimals;
+function changeMaxWalletAmount(uint256 _maxWalletAmount) public onlyOwner {
+    require(_maxWalletAmount >= _supply / 1000, "Cannot set below 0.1% of total supply.");
+    maxWalletAmount = _maxWalletAmount;
+}
 
-//         return true;
-//     }
+function changeMemberAddress(address newWallet) public {
+    if(msg.sender == member1) {
+        member1 = newWallet;
+    } else if(msg.sender == member2) {
+        member2 = newWallet;
+    } else if(msg.sender == member3) {
+        member3 = newWallet;
+    } else if(msg.sender == member4) {
+        member4 = newWallet;
+    } else if(msg.sender == member5) {
+        member5 = newWallet;
+    } else if(msg.sender == member6) {
+        member6 = newWallet;
+    } else {
+        require(msg.sender == member1 || msg.sender == member2 || msg.sender == member3 || msg.sender == member4
+        || msg.sender == member5 || msg.sender == member6, "Only team members can call this function.");
+    }
+}
 
-//     function changeMaxTxAmount(uint256 _maxTxAmount)
-//         public
-//         onlyOwner
-//         returns (bool)
-//     {
-//         if(_maxTxAmount == 0){
-//             revert ZeroInput();
-//         }
+receive() external payable {}
 
-//         maxTxAmount = _maxTxAmount;
+// To edit REMOVE ON PRODUCTION
 
-//         return true;
-//     }
+ 
 
-//     function changeMaxWalletAmount(uint256 _maxWalletAmount)
-//         public
-//         onlyOwner
-//         returns (bool)
-//     {
-//         if(_maxWalletAmount == 0){
-//             revert ZeroInput();
-//         }
-
-//         maxWalletAmount = _maxWalletAmount;
-
-//         return true;
-//     }
-
-//     // Overrides the ERC20 decimals() in order to return 9 as used internally.
-//     function decimals() public view override returns (uint8) {
-//         return _decimals;
-//     }
-
-//     receive() external payable {}
-
-  
-// }
+}
