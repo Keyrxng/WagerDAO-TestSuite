@@ -14,7 +14,7 @@ contract WagerPass is ERC721, Pausable, AccessControl, ReentrancyGuard {
     bytes32 public constant WHITELIST_ROLE = keccak256("WHITELIST_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
         
-    Counters.Counter private _tokenIdCounter;
+    Counters.Counter public _tokenIdCounter;
     
 // Treasury Wallet
     address treasury;
@@ -36,9 +36,7 @@ contract WagerPass is ERC721, Pausable, AccessControl, ReentrancyGuard {
     uint32 public numAddressesWhitelisted;
 
 // Mappings
-    mapping(address => bool) private whitelistedAddresses;
-
-
+    mapping(address => bool) public whitelistedAddresses; // is never used and private
 
     // Treasury wallet set upon deployment, changeable later by admin.
     constructor(string memory _wagerPassURI, address _treasury) ERC721("WagerPass", "WPASS") {
@@ -67,7 +65,6 @@ contract WagerPass is ERC721, Pausable, AccessControl, ReentrancyGuard {
        
     }
 
-    // Mint
     function safeMint(address to) public onlyRole(MINTER_ROLE) {
         uint256 tokenId = _tokenIdCounter.current();
         _tokenIdCounter.increment();
@@ -86,9 +83,10 @@ contract WagerPass is ERC721, Pausable, AccessControl, ReentrancyGuard {
 
        for(uint256 i = 0; i < _whitelistedAddresses.length; i++) {
             _grantRole(WHITELIST_ROLE, _whitelistedAddresses[i]);
+            numAddressesWhitelisted += 1;
         }
 
-        numAddressesWhitelisted += 1;
+        // numAddressesWhitelisted += 1;
     }
     
     function setTreasuryWallet(address _treasury) public onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -98,6 +96,11 @@ contract WagerPass is ERC721, Pausable, AccessControl, ReentrancyGuard {
 
 
     // Mint WagerPass - Presale/Public
+    /**
+        * @dev Double require that compares against no presale or public sale state
+        * and presale is the lower figure so public sale amount is never reached
+        * @dev Doesn't accept a higher input than 10 and allows more mints than max allowed per address
+     */
  
     function mint(uint256 numOfPasses) public payable nonReentrant {
         

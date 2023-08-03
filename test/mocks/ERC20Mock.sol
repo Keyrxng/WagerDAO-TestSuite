@@ -14,5 +14,4 @@ contract ERC20Mock is ERC20 {
         ) ERC20(_name, _symbol) payable {
         _mint(msg.sender, _supply * 10**uint256(_decimals));
     }
-
 }

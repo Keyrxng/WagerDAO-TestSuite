@@ -21,9 +21,9 @@ interface IUniswapV2Router02 {
 
 contract WagerDAOTreasury {
     address public owner;
-    address private receiver;
-    address private scoreToken = 0x2d94126ACFd8F6dAd5811eec15FD019f0E4EBb57;
-    address private routerAddress = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1;
+    address public receiver;
+    address public scoreToken = 0x2d94126ACFd8F6dAd5811eec15FD019f0E4EBb57;
+    address public routerAddress = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1;
 
     struct Influencer {
         string name;
@@ -34,7 +34,7 @@ contract WagerDAOTreasury {
     }
 
     mapping(uint256 => Influencer) public influencerID;
-    mapping(address => bool) private contractAdministrator;
+    mapping(address => bool) public contractAdministrator;
 
     uint256 public totalInfluencersPaid = 0;
     uint256 public totalEthSpentForMarketing = 0;
