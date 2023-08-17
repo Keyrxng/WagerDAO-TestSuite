@@ -1,212 +1,12 @@
-/**
- *Submitted for verification at polygonscan.com on 2023-08-11
-*/
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
-
-interface IUniswapV2Factory {
-function getPair(address tokenA, address tokenB) external view returns (address pair);
-function createPair(address tokenA, address tokenB) external returns (address pair);
-}
-
-interface IUniswapV2Router02 {
-function factory() external pure returns (address);
-function WETH() external pure returns (address);
-
-function addLiquidity(
-    address tokenA,
-    address tokenB,
-    uint amountADesired,
-    uint amountBDesired,
-    uint amountAMin,
-    uint amountBMin,
-    address to,
-    uint deadline
-) external returns (uint amountA, uint amountB, uint liquidity);
-
-function addLiquidityETH(
-    address token,
-    uint amountTokenDesired,
-    uint amountTokenMin,
-    uint amountETHMin,
-    address to,
-    uint deadline
-) external payable returns (uint amountToken, uint amountETH, uint liquidity);
-
-function swapExactTokensForETHSupportingFeeOnTransferTokens(
-    uint amountIn,
-    uint amountOutMin,
-    address[] calldata path,
-    address to,
-    uint deadline
-) external;
-}
-
-interface IERC20 {
-event Transfer(address indexed from, address indexed to, uint256 value);
-event Approval(address indexed owner, address indexed spender, uint256 value);
-function totalSupply() external view returns (uint256);
-function balanceOf(address account) external view returns (uint256);
-function transfer(address to, uint256 amount) external returns (bool);
-function allowance(address owner, address spender) external view returns (uint256);
-function approve(address spender, uint256 amount) external returns (bool);
-function transferFrom(
-    address from,
-    address to,
-    uint256 amount
-) external returns (bool);
-}
-
-interface IERC20Metadata is IERC20 {
-function name() external view returns (string memory);
-function symbol() external view returns (string memory);
-function decimals() 
-external view returns (uint8);
-}
+import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
+import { Ownable } from "@openzeppelin/access/Ownable.sol";
+import { IUniswapV2Router02 } from "../../src/interfaces/IUniV2Router.sol";
+import { IUniswapV2Factory } from "../../src/interfaces/IUniV2Factory.sol";
 
 interface ITreasury {
-function distributeFeeTokens(uint256 tokens) external;
-}
-
-abstract contract Context {
-function _msgSender() internal view virtual returns (address) {
-    return msg.sender;
-}
-function _msgData() internal view virtual returns (bytes calldata) {
-    this;
-    return msg.data;
-}
-}
-
-contract Ownable is Context {
-
-address private _owner;
-event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-constructor () {
-    address msgSender = _msgSender();
-    _owner = msgSender;
-    emit OwnershipTransferred(address(0), msgSender);
-}
-
-function owner() public view returns (address) {
-    return _owner;
-}   
-
-modifier onlyOwner() {
-    require(_owner == _msgSender(), "Ownable: caller is not the owner");
-    _;
-}
-
-function renounceOwnership() public virtual onlyOwner {
-    emit OwnershipTransferred(_owner, address(0));
-    _owner = address(0);
-}
-
-function transferOwnership(address newOwner) public virtual onlyOwner {
-    require(newOwner != address(0), "Ownable: new owner is the zero address");
-    emit OwnershipTransferred(_owner, newOwner);
-    _owner = newOwner;
-}
-
-function getTime() public view returns (uint256) {
-    return block.timestamp;
-}
-}
-
-contract ERC20 is Context, IERC20, IERC20Metadata {
-mapping(address => uint256) internal _balances;
-
-mapping(address => mapping(address => uint256)) private _allowances;
-
-uint256 private _totalSupply = 1_000_000_000 * 1e9;
-
-string private _name;
-string private _symbol;
-
-constructor(string memory name_, string memory symbol_) {
-    _name = name_;
-    _symbol = symbol_;
-}
-
-function decimals() public view virtual override returns (uint8) { return 9; }
-function name() public view virtual override returns (string memory) { return _name; }
-function symbol() public view virtual override returns (string memory) { return _symbol; }
-function totalSupply() public view virtual override returns (uint256) { return _totalSupply; }
-function balanceOf(address account) public view virtual override returns (uint256) { return _balances[account]; }
-
-function transfer(address to, uint256 amount) public virtual override returns (bool) {
-    address owner = _msgSender();
-    _transfer(owner, to, amount);
-    return true;
-}
-
-function allowance(address owner, address spender) public view virtual override returns (uint256) {
-    return _allowances[owner][spender];
-}
-
-function approve(address spender, uint256 amount) public virtual override returns (bool) {
-    address owner = _msgSender();
-    _approve(owner, spender, amount);
-    return true;
-}
-
-function transferFrom(address from, address to, uint256 amount) public virtual override returns (bool) {
-    address spender = _msgSender();
-    _spendAllowance(from, spender, amount);
-    _transfer(from, to, amount);
-    return true;
-}
-
-function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
-    address owner = _msgSender();
-    _approve(owner, spender, allowance(owner, spender) + addedValue);
-    return true;
-}
-
-function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
-    address owner = _msgSender();
-    uint256 currentAllowance = allowance(owner, spender);
-    require(currentAllowance >= subtractedValue, "ERC20: decreased allowance below zero");
-    unchecked {_approve(owner, spender, currentAllowance - subtractedValue);}
-    return true;
-}
-
-function _transfer(address from, address to, uint256 amount) internal virtual {
-    require(from != address(0), "ERC20: transfer from the zero address");
-    require(to != address(0), "ERC20: transfer to the zero address");
-    uint256 fromBalance = _balances[from];
-    require(fromBalance >= amount, "ERC20: transfer amount exceeds balance");
-    unchecked {_balances[from] = fromBalance - amount;}
-    _balances[to] += amount;
-    emit Transfer(from, to, amount);
-}
-
-function _burn(address account, uint256 amount) internal virtual {
-    require(account != address(0), "ERC20: burn from the zero address");
-    uint256 accountBalance = _balances[account];
-    require(accountBalance / 1e9 >= amount, "ERC20: burn amount exceeds balance");
-    _balances[account] -=  amount * 1e9;
-    _totalSupply -= amount * 1e9;
-    emit Transfer(account, address(0), amount);
-}
-
-function _approve(address owner, address spender, uint256 amount) internal virtual {
-    require(owner != address(0), "ERC20: approve from the zero address");
-    require(spender != address(0), "ERC20: approve to the zero address");
-    _allowances[owner][spender] = amount;
-    emit Approval(owner, spender, amount);
-}
-
-function _spendAllowance(address owner, address spender, uint256 amount) internal virtual {
-    uint256 currentAllowance = allowance(owner, spender);
-    if (currentAllowance != type(uint256).max) {
-        require(currentAllowance >= amount, "ERC20: insufficient allowance");
-        unchecked {_approve(owner, spender, currentAllowance - amount);}
-    }
-}
-
+    function distributeFeeTokens(uint256 tokens) external;
 }
 
 contract Scores is ERC20, Ownable {
@@ -293,7 +93,8 @@ constructor() ERC20(_name, _symbol) {
     _isExcludedFromFee[msg.sender] = true;
     _isExcludedFromFee[treasuryAddress] = true;
     canTransferBeforeLaunch[msg.sender] = true;
-    _balances[msg.sender] = _supply;
+    
+    _mint(msg.sender,  _supply);
     emit Transfer(address(0), msg.sender, _supply);
 }
 
@@ -305,8 +106,14 @@ function setUniPair(address addr) external onlyOwner {
     uniswapV2Pair = addr;
 }
 
-function burn(uint256 coins) public {
+// @notice: is now auth guarded
+function burn(uint256 coins) public onlyOwner {
     _burn(msg.sender, coins);
+}
+
+// @notice: overrides decimals 18 > 9
+function decimals() public view virtual override returns (uint8) {
+    return 9;
 }
 
 function _transfer(address from, address to, uint256 amount) internal override {
@@ -368,9 +175,8 @@ function swapTokensForEthWithShares(uint256 tokenAmount) private lockTheSwap {
     uint256 tokensForTreasury = tokenAmount * treasuryShare / 100;
 
     if(tokensForTreasury > 0) {
-        _balances[address(this)] -= tokensForTreasury;
-        _balances[treasuryAddress] += tokensForTreasury;
-        // Remove this ---> // try ITreasury(treasuryAddress).distributeFeeTokens(tokensForTreasury) {} catch {}
+        _burn(address(this), tokensForTreasury);
+        _mint(treasuryAddress, tokensForTreasury);
 
         emit Transfer(address(this), treasuryAddress, tokenAmount);
     }

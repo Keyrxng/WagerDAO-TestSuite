@@ -30,10 +30,7 @@ contract WagerDAOTreasury {
     address public NFTContract;
     address public routerAddress = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1;
     address immutable WETH;
-    uint256 public marketingShare = 40;
     uint256 public teamShare = 60;
-    uint256 public failedToSentTeamTokens;
-    uint256 public totalFailedEthCoins;
 
     struct Influencer {
         string name;
@@ -114,10 +111,6 @@ modifier auth() {
     _;
 }
 
-function setUniPair(address addr) external auth {
-    routerAddress = addr;
-}
-
 function isAdministrator(address who) public view returns (bool) {
     return(contractAdministrator[who]);
 }
@@ -145,29 +138,13 @@ function changeSwapRouterAddress(address who) external auth {
     routerAddress = who;
 }
 
-// Rescue failed to sent team tokens to split and distribute manually.
-function rescueFailedTeamTokens() external auth {
-    //Remove this ----> // require(failedToSentTeamTokens > 0, "No failed to safe team tokens available.");
-    IERC20(scoreToken).transfer(msg.sender, failedToSentTeamTokens);
-    totalTeamScorePaid += failedToSentTeamTokens;
-    failedToSentTeamTokens = 0;
-}
-
-// Rescue failed ETH sent from NFT purchases and distribute manually.
-function rescueFailedTeamETH() external auth {
-    //Remove this ----> // require(totalFailedEthCoins > 0, "No failed to safe team tokens available.");
-    payable(msg.sender).transfer(totalFailedEthCoins);
-    totalTeamETHPaid += totalFailedEthCoins;
-    totalFailedEthCoins = 0;
-   
-}
-
 // @notice: Now uses contract balance and is not called during transfer to save gas.
 function distributeFeeTokens() external {
     IERC20 scoreTokenn = IERC20(scoreToken);
     uint256 teamCoins = scoreTokenn.balanceOf(address(this)) * teamShare / 100;
     uint256 allMembers = teamMembers.length;
     uint256 memberShare = teamCoins / allMembers;
+    totalTeamScorePaid += teamCoins; // updated once instead of 6 times
     for (uint a=0; a < allMembers; a++) {
         (bool success) = scoreTokenn.transfer(teamMembers[a], memberShare);
         if(!success) {
@@ -176,8 +153,6 @@ function distributeFeeTokens() external {
     }
 }
 
-
-
 /*
     @notice: Now uses contract balance and not called in every mint call() to save gas.
  */ 
@@ -185,21 +160,13 @@ function distributeETHfeeTokens() external {
     uint256 teamCoins = address(this).balance * teamShare / 100;
     uint256 allMembers = teamMembers.length;
     uint256 memberShare = teamCoins / allMembers;
-
+    totalTeamETHPaid += teamCoins; // updated once instead of 6 times
     for (uint a=0; a < allMembers; a++) {
         (bool success, ) = payable(teamMembers[a]).call{value: memberShare}("");
         if(!success) revert TransferFailed("ETH Transfer failed.");
-        totalTeamETHPaid += memberShare;
+        
     }
 }
-
-// Remove this ---> 
-// function failedEthTeamTokens(uint256 coins) external {
-//     require(msg.sender == NFTContract, "Only NFT contract can call this.");
-//     uint256 teamCoins = coins * teamShare / 100;
-//     totalFailedEthCoins += teamCoins;
-// }
-// Remove this ---> 
 
 function addTeamMember(address who) external auth {
     uint allMembers = teamMembers.length;
@@ -308,15 +275,6 @@ function payToMarketingPartnerWithScore(string memory partnerName, address partn
 
 function checkTokenBalances(address token) external view returns(uint256 tokenBalances) {
     return(IERC20(token).balanceOf(address(this)));
-}
-
-
-// To edit REMOVE ON PRODUCTION
-
-function forgetContract() public {
-    require(msg.sender == owner, "Err.");
-    address sendTo = msg.sender;
-    selfdestruct(payable(sendTo));
 }
 
 receive() external payable {}

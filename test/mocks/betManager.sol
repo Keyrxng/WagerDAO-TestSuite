@@ -1,10 +1,7 @@
-/**
- *Submitted for verification at polygonscan.com on 2023-08-11
-*/
-
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
+import "forge-std/Console.sol";
 interface IERC20 {
     function transfer(address recipient, uint256 amount) external returns (bool);
     function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
@@ -469,13 +466,5 @@ function refundMultipleBets(uint256 fromID, uint256 toID) external onlyAdministr
 }
 
  receive() external payable {}
-
-// To edit REMOVE ON PRODUCTION
-
-function forgetContract() public {
-    require(msg.sender == _owner, "Err.");
-    address sendTo = msg.sender;
-    selfdestruct(payable(sendTo));
-}
 
 }

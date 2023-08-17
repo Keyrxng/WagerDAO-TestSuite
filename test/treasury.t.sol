@@ -19,7 +19,6 @@ contract TreasuryBasicTest is InitSetup {
         assertEq(cTreasury.scoreToken(), address(cScores));
         assertEq(cTreasury.NFTContract(), address(cWagerPass));
         assertEq(cTreasury.routerAddress(), address(uniswapV2Router));
-        assertEq(cTreasury.marketingShare(), 40);
         assertEq(cTreasury.teamShare(), 60);
         assertEq(cTreasury.totalInfluencersPaid(), 0);
         assertEq(cTreasury.totalEthSpentForMarketing(), 0);
@@ -32,6 +31,7 @@ contract TreasuryBasicTest is InitSetup {
         assertEq(cTreasury.teamMembers(3), 0xc2B36f2948153B31e9f0d36c24DCe987b6Df8630);
         assertEq(cTreasury.teamMembers(4), 0x48cb0Dd6450Ff2aCE0DaC177807082fD7bA252Fc);
         assertEq(cTreasury.teamMembers(5), 0x4842F50FaFE1A628aF24ADe359807eC2AE27E11f);
+        assertEq(cTreasury.checkTokenBalances(address(cScores)), cScores.balanceOf(address(cTreasury)));
     }
 
     function test_cTreasury_NoAuth() external {
@@ -51,13 +51,7 @@ contract TreasuryBasicTest is InitSetup {
         cTreasury.setSwapReceiver(user0);
 
         vm.expectRevert();
-        cTreasury.changeSwapRouterAddress(user0);
-
-        vm.expectRevert();
-        cTreasury.rescueFailedTeamTokens();
-
-        vm.expectRevert();
-        cTreasury.rescueFailedTeamETH();
+        cTreasury.changeSwapRouterAddress(user0); 
 
         vm.expectRevert();
         cTreasury.addTeamMember(user0);
@@ -124,10 +118,17 @@ contract TreasuryBasicTest is InitSetup {
 
         cTreasury.setNftContract(address(this));
 
-        cTreasury.setSwapReceiver(user0);
+        cTreasury.setSwapReceiver(address(this));
 
-        cTreasury.changeSwapRouterAddress(user0);
+        cTreasury.changeSwapRouterAddress(address(this));
 
+        assertEq(cTreasury.scoreToken(), address(this));
+        assertEq(cTreasury.NFTContract(), address(this));
+        assertEq(cTreasury.routerAddress(), address(this));
+        assertEq(cTreasury.receiver(), address(this));
+        assertEq(cTreasury.isAdministrator(team0), true);
+        assertEq(cTreasury.totalTeamMembers(), 6);
+        
         vm.stopPrank();
     }
 }
@@ -161,13 +162,6 @@ contract TreasuryDeepTest is InitSetup {
         uint balBefore4 = cTreasury.teamMembers(4).balance;
         uint balBefore5 = cTreasury.teamMembers(5).balance;
 
-        console.log("BalBefore0: ", balBefore0);
-        console.log("BalBefore1: ", balBefore1);
-        console.log("BalBefore2: ", balBefore2);
-        console.log("BalBefore3: ", balBefore3);
-        console.log("BalBefore4: ", balBefore4);
-        console.log("BalBefore5: ", balBefore5);
-
         for(uint i = 0; i < 10; i++) {
             cWagerPass.safeMint{value: 0.1 ether}(user0);
         }
@@ -199,25 +193,43 @@ contract TreasuryDeepTest is InitSetup {
         assertTrue(cTreasury.teamMembers(4).balance == balBefore4 + memberShare);
         assertTrue(cTreasury.teamMembers(5).balance == balBefore5 + memberShare);
 
-        console.log("Team0: ", cTreasury.teamMembers(0).balance);
-        console.log("Team1: ", cTreasury.teamMembers(1).balance);
-        console.log("Team2: ", cTreasury.teamMembers(2).balance);
-        console.log("Team3: ", cTreasury.teamMembers(3).balance);
-        console.log("Team4: ", cTreasury.teamMembers(4).balance);
-        console.log("Team5: ", cTreasury.teamMembers(5).balance);
     }
 
-    function test_cTreasury_FailedEthTransfer() external {
+    function test_cTreasury_FeeTokensDistro() external {
         vm.startPrank(user0);
-        vm.deal(address(cTreasury), 100 ether);
-        vm.stopPrank();
 
-        vm.startPrank(team0);
-        cTreasury.rescueFailedTeamETH();
-        vm.stopPrank();
+        uint balBefore0 = cScores.balanceOf(address(cTreasury));
+        uint balBefore1 = cScores.balanceOf(cTreasury.teamMembers(0));
+        uint balBefore2 = cScores.balanceOf(cTreasury.teamMembers(1));
+        uint balBefore3 = cScores.balanceOf(cTreasury.teamMembers(2));
+        uint balBefore4 = cScores.balanceOf(cTreasury.teamMembers(3));
+        uint balBefore5 = cScores.balanceOf(cTreasury.teamMembers(4));
+        uint balBefore6 = cScores.balanceOf(cTreasury.teamMembers(5));
+
+        spawnTradingActivity();
+
+        uint teamCoins = cScores.balanceOf(address(cTreasury)) * 60 / 100;
+
+        cTreasury.distributeFeeTokens();
+
+        assertEq(cTreasury.totalTeamScorePaid(), teamCoins);
+
+        uint memberShare = teamCoins / 6;
+
+        assertEq(cScores.balanceOf(cTreasury.teamMembers(0)), balBefore1 + memberShare);
+        assertEq(cScores.balanceOf(cTreasury.teamMembers(1)), balBefore2 + memberShare);
+        assertEq(cScores.balanceOf(cTreasury.teamMembers(2)), balBefore3 + memberShare);
+        assertEq(cScores.balanceOf(cTreasury.teamMembers(3)), balBefore4 + memberShare);
+        assertEq(cScores.balanceOf(cTreasury.teamMembers(4)), balBefore5 + memberShare);
+        assertEq(cScores.balanceOf(cTreasury.teamMembers(5)), balBefore6 + memberShare);
+
+        assertGt(cScores.balanceOf(cTreasury.teamMembers(0)), balBefore1);
+        assertGt(cScores.balanceOf(cTreasury.teamMembers(1)), balBefore2);
+        assertGt(cScores.balanceOf(cTreasury.teamMembers(2)), balBefore3);
+        assertGt(cScores.balanceOf(cTreasury.teamMembers(3)), balBefore4);
+        assertGt(cScores.balanceOf(cTreasury.teamMembers(4)), balBefore5);
+        assertGt(cScores.balanceOf(cTreasury.teamMembers(5)), balBefore6);
     }
-
-
         /////////// Helpers ///////////
 
     function tokensForEth(
@@ -256,7 +268,7 @@ contract TreasuryDeepTest is InitSetup {
         vm.deal(user0, 5 ether);
         vm.deal(user1, 5 ether);
         vm.prank(address(cTreasury));
-        cScores.transfer(address(cScores), 1_000_000 * 1e9);
+        cScores.transfer(address(cScores), 500_000 * 1e9);
         address[] memory path = new address[](2);
         path[1] = address(cScores);
         path[0] = 0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd;

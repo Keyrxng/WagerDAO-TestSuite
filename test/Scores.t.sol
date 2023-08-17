@@ -123,6 +123,8 @@ contract ScoresBasicTest is InitSetup {
         cScores.changeMaxWalletAmount(10000000000000000000);
         assertEq(cScores.maxWalletAmount(), 10000000000000000000);
 
+        
+
         vm.stopPrank();
     }
 }
@@ -382,23 +384,14 @@ contract ScoresDeepTest is InitSetup {
     }
 
     function test_cScores_SwapforEthWithShares() external {
-        uint contractBal = 1_000_000 * 1e9;
-        uint treasuryShare = 70;
-        uint liquidityShare = 30;
-        uint tForLiq = contractBal * liquidityShare / 100;
-        uint tForTre = contractBal * treasuryShare / 100;
-        
-        assertEq(tForLiq, 300_000 * 1e9);
-        assertEq(tForTre, 700_000 * 1e9);
-        assertEq(cScores.balanceOf(address(cTreasury)), contractBal);
-
-        uint teamCoin = tForTre * 60 / 100;
+        uint contractBal = cScores.balanceOf(address(cTreasury));
+        uint teamCoin = contractBal * 60 / 100;
         uint allMembers = 6;
         uint memberShare = teamCoin / allMembers;
         assertEq(memberShare, teamCoin / 6);
 
         vm.prank(address(cScores));
-        cTreasury.distributeFeeTokens(tForTre);
+        cTreasury.distributeFeeTokens();
 
         assertEq(cTreasury.totalTeamScorePaid(), memberShare * allMembers);
         assertEq(cScores.balanceOf(cTreasury.teamMembers(1)), memberShare);

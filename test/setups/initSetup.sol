@@ -18,15 +18,12 @@ contract InitSetup is Test {
     betManager_V01 internal cBetManager;
     Wager_DAO_NFT internal cWagerPass;
     NFTBetFeesDistributor internal cFeeDistro;
-    ERC20Mock internal cERC20Mock;
 
 
     IUniswapV2Router02 internal constant uniswapV2Router = IUniswapV2Router02(0xD99D1c33F9fC3444f8101754aBC46c52416550D1); //bsc testnet
     IUniswapV2Factory internal uniswapV2Factory;
     IUniswapV2Pair  internal uniV2Pair;
-    IUniswapV2Pair  internal uniV2PairBUSD;
 
-    IWETH internal BUSD;
     IWETH internal WETH;
     
     uint internal liquidityy;
@@ -88,5 +85,20 @@ contract InitSetup is Test {
             token0Liq = amountA;
             token1Liq = amountB;
         vm.stopPrank();
+    }
+
+    function test_InitSetup() external {
+        assertTrue(address(cScores) != address(0));
+        assertTrue(address(cTreasury) != address(0));
+        assertTrue(address(cBetManager) != address(0));
+        assertTrue(address(cWagerPass) != address(0));
+        assertTrue(address(cFeeDistro) != address(0));
+        assertTrue(address(WETH) != address(0));
+        assertTrue(address(uniswapV2Router) != address(0));
+        assertTrue(address(uniswapV2Factory) != address(0));
+        assertTrue(address(uniV2Pair) != address(0));
+        assertTrue(liquidityy > 0);
+        assertTrue(token0Liq > 0);
+        assertTrue(token1Liq > 0);
     }
 }

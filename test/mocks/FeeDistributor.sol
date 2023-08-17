@@ -107,13 +107,4 @@ contract NFTBetFeesDistributor {
         } catch {}
 
     }
-
-// To edit REMOVE ON PRODUCTION
-
-function forgetContract() public {
-    require(msg.sender == owner, "Err.");
-    address sendTo = msg.sender;
-    selfdestruct(payable(sendTo));
-}
-
 }
