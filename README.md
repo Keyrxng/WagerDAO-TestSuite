@@ -97,10 +97,8 @@ Test result: ok. 3 passed; 0 failed; 0 skipped; finished in 3.54s
 ```
 
 ## Gas Report
-
-| test/mocks/FeeDistributor.sol:NFTBetFeesDistributor contract |                 |       |        |       |         
-|
-|--------------------------------------------------------------|-----------------|-------|--------|-------|---------|
+| test/mocks/FeeDistributor.sol:NFTBetFeesDistributor contract       |                 |        |        |        |         |
+|---------------------------------------------|-----------------|--------|--------|--------|---------|
 | Deployment Cost                                              | Deployment Size |       |        |       |         
 |
 | 620472                                                       | 2772            |       |        |       |         
