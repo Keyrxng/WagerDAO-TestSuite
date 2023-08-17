@@ -1,409 +1,411 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
-
 import {Test} from "forge-std/Test.sol";
-import {Scores} from "./mocks/Scores.sol";
-import {WagerDAOTreasury} from "./mocks/Treasury.sol";
-import {betManagerV04} from "./mocks/betManager.sol";
-import {ERC20Mock} from "./mocks/ERC20Mock.sol";
-import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
-import {IWETH} from "../src/interfaces/IWETH.sol";
-import {IUniswapV2Pair} from "../src/interfaces/IUniV2Pair.sol";
-import {IUniswapV2Router02} from "../src/interfaces/IUniV2Router.sol";
-import {IUniswapV2Factory} from "../src/interfaces/IUniV2Factory.sol";
-import {InitSetup} from "./setups/InitSetup.sol";
 import "forge-std/Console.sol";
+import {InitSetup} from "./setups/initSetup.sol";
+import {Scores} from "./mocks/Scores.sol";
 
-contract ScoresTest is InitSetup {
-
-    uint256 private buyTaxes = 470;
-    uint256 private sellTaxes = 470;
-    uint256 private divider = 1000;
-
-    uint256 private maxTxAmount = 10000001 * 1e9;
-    uint256 private maxWalletAmount = 10000001 * 1e9;
-
-    uint256 public swapThrehold = 200000 * 1e9;
-    uint256 private treasuryShare = 70;
-    uint256 private liquidityShare = 30;
-    
-
+contract ScoresBasicTest is InitSetup {
     function setUp() public override {
         super.setUp();
-        vm.deal(user1, 5 ether);
+        // team0 has 50ETH
+        // LP has 300M tokens and 50WETH
+        // vm.prank(team0);
+        // cScores.transfer(user0, 100 * 1e9);
+    }
+
+    function test_cScoresState() external {
         vm.startPrank(team0);
+        assertEq(cScores.name(), "Scores");
+        assertEq(cScores.symbol(), "SCORE");
+        assertEq(cScores.decimals(), 9);
+        assertEq(cScores.totalSupply(), 1_000_000_000 * 1e9);
+        assertEq(cScores.buyTaxes(), 470);
+        assertEq(cScores.sellTaxes(), 470);
+        assertEq(cScores.divider(), 1000);
+        assertEq(cScores.maxTxAmount(), 10_000_001 * 1e9);
+        assertEq(cScores.maxWalletAmount(), 10_000_001 * 1e9);
+        assertEq(cScores._isExcludedFromFee(address(uniswapV2Router)), true);
+        assertEq(cScores._isExcludedFromFee(team0), true);
+        assertEq(cScores._isExcludedFromFee(address(cTreasury)), false);
+        assertEq(cScores.canTransferBeforeLaunch(address(team0)), true);
+        assertEq(cScores.treasuryAddress(), address(cTreasury));
+        assertEq(cScores.swapThrehold(), 200_000 * 1e9);
+        assertEq(cScores.treasuryShare(), 70);
+        assertEq(cScores.liquidityShare(), 30);
+        assertEq(cScores.isItLaunched(), false);
+        assertEq(cScores.autoSwapEnabled(), true);
+        cScores.setUniPair(address(uniV2Pair));
+        assertEq(cScores.uniswapV2Pair(), address(uniV2Pair));
+        assertEq(address(cScores.uniswapV2Router()), address(uniswapV2Router));
+        vm.stopPrank();
+    }
+
+    function test_cScores_NoAuth() external {
+        vm.startPrank(user0);
+
+        vm.expectRevert();
+        cScores.preLaunchTransfer(user1, true);
+
+        vm.expectRevert();
+        cScores.updatePair(user1);
+
+        vm.expectRevert();
         cScores.launch();
-        
-    }
 
-    function test_PostLaunch() external {
-        // Tests that the postLaunch function works as intended
-
-        uint newBuyTaxes = 30;
-        uint newSellTaxes = 30;
-        uint newMaxTxAmount = 10_000_001 * 1e9; // no different from initial value
-        uint newMaxWalletAmount = 10_000_001 * 1e9; // no different from initial value
-
-        (uint initBuyTax, uint initSellTax) = cScores.currentTaxes();
-        (uint initMaxTxAmount, uint initMaxWalletAmount) = cScores
-            .currentLimits();
-
-        assertEq(initBuyTax, buyTaxes);
-        assertEq(initSellTax, sellTaxes);
-        assertEq(initMaxTxAmount, maxTxAmount);
-        assertEq(initMaxWalletAmount, maxWalletAmount);
-
-        cScores.postLaunch();
-
-        (uint newBuyTax, uint newSellTax) = cScores.currentTaxes();
-        (uint updatedTxAmount, uint updatedMaxWalletAmount) = cScores
-            .currentLimits();
-
-        assertEq(newBuyTax, newBuyTaxes);
-        assertEq(newSellTax, newSellTaxes);
-        assertEq(updatedTxAmount, newMaxTxAmount);
-        assertEq(updatedMaxWalletAmount, newMaxWalletAmount);
-
-        assertTrue(newBuyTax != initBuyTax);
-        assertTrue(newSellTax != initSellTax);
-        // assertTrue(updatedTxAmount != initMaxTxAmount); // fails due to value unchanged
-        // assertTrue(updatedMaxWalletAmount != initMaxWalletAmount); // fails due to value unchanged
-        vm.stopPrank();
-    }
-
-    function test_TradingWorks() external {
-        // Tests that AMM trading works at least once
-        address[] memory path = new address[](2);
-        path[0] = address(cScores);
-        path[1] = address(WETH);
-        address to = payable(team1);
-        uint deadline = block.timestamp + 1000000000;
-        uint balBeforeTrade = cScores.balanceOf(team0);
-        uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            100000,
-            0,
-            path,
-            to,
-            deadline
-        );
-        uint balAfterTrade = cScores.balanceOf(team0);
-
-        assertTrue(balAfterTrade < balBeforeTrade);
-        uint ethBal = team0.balance;
-
-        path[0] = address(WETH);
-        path[1] = address(cScores);
-
-        uniswapV2Router.swapExactETHForTokensSupportingFeeOnTransferTokens{
-            value: 1e9
-        }(0, path, to, deadline);
-        uint ethBalAfter = team0.balance;
-        assertTrue(ethBalAfter < ethBal);
-    }
-
-    function testFail_TradingMaxTxAmount() external {
-        // Tests that trading restrictions are enforced
-        // maxTxAmount is 10_000_001_000_000_000
-        //    trade size  700_000_000_000_000_000
-        // this should fail but it doesn't
-        // user1 is not excluded from fees or size restrictions
-
-        cScores.transfer(user1, cScores.balanceOf(team0));
-        vm.stopPrank();
-        vm.startPrank(user1);
-        cScores.approve(address(uniswapV2Router), cScores.balanceOf(user1));
-
-        address[] memory path = new address[](2);
-        path[0] = address(cScores);
-        path[1] = address(WETH);
-
-        address to = payable(user1);
-        uint deadline = block.timestamp + 1000000000;
-        uint balBeforeTrade = cScores.balanceOf(user1);
-        console.log("User1 balance before trade: ", balBeforeTrade);
-        console.log("Max transaction: ", cScores.maxTxAmount());
-        assertTrue(cScores.maxTxAmount() >= balBeforeTrade);
-
-        vm.expectRevert(); // max tx amount reached
-        uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            balBeforeTrade, // 700_000_000_000_000_000
-            0,
-            path,
-            to,
-            deadline
-        );
-       
-
-    }
-
-    function test_TradingSellFees() external {
-        // Tests that trading fees are collected and distributed correctly
-        // Balance before: 700000000000000000
-        // Balance after:  699900000000000000
-
-        // Trade size:     100_000_000_000_000
-        // Tax Amount:     47_000_000_000_000
-        // Trade - Tax =   53_000_000_000_000
-
-        // Trades take 47% of the trade amount as tax
-        
-        address[] memory path = new address[](2);
-        path[0] = address(cScores);
-        path[1] = address(WETH);
-        cScores.transfer(user1, cScores.balanceOf(team0));
-        vm.stopPrank();
-        vm.startPrank(user1);
-        cScores.approve(address(uniswapV2Router), cScores.balanceOf(user1));
-
-        address to = payable(user1);
-        uint deadline = block.timestamp + 1000000000;
-
-        uint balBeforeTrade = cScores.balanceOf(user1);
-        uint ethBalBefore = user1.balance;
-        uint scoresOwnBalanceBefore = cScores.balanceOf(address(cScores));
-
-        uint toV2PairTaxAmount = 100000 * 1e9 * sellTaxes / divider;
-        uint fromV2PairTaxAmount = 100000 * 1e9 * buyTaxes / divider;
-
-        uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            100000 * 1e9,
-            0,
-            path,
-            to,
-            deadline
-        );
-
-        uint balAfterTrade = cScores.balanceOf(user1);
-        uint ethBalAfter = user1.balance;
-        uint scoresOwnBalanceAfter = cScores.balanceOf(address(cScores));
-        
-        assertTrue(ethBalAfter > ethBalBefore);
-        assertTrue(balAfterTrade < balBeforeTrade);
-        assertEq(toV2PairTaxAmount, fromV2PairTaxAmount); // taxes are the same for buy and sell
-        
-        assertEq(balAfterTrade, balBeforeTrade - 100000 * 1e9);
-        assertEq(scoresOwnBalanceAfter, scoresOwnBalanceBefore + toV2PairTaxAmount);
-        assertEq(scoresOwnBalanceAfter, toV2PairTaxAmount);
-    }
-
-    function test_TradingBuyFees() external {
-        // Tests that trading fees are collected and distributed correctly
-        // Balance before: 5000000000000000000
-        // Balance after:  4999900000000000000
-
-        // Trade size:     598_798_804_797
-        // cScores bought: 598_798_804_797
-        // Tax Amount:     281_435_438_254
-        // Trade - Tax =   317_363_366_543
-
-        // Trades take 47% of the trade amount as tax
-        
-        address[] memory path = new address[](2);
-        path[0] = address(WETH);
-        path[1] = address(cScores);
-        
-        vm.stopPrank();
-        vm.startPrank(user1);
-        
-        WETH.approve(address(uniswapV2Router), WETH.balanceOf(user1));
-        
-        address to = payable(user1);
-        uint deadline = block.timestamp + 1000000000;
-
-        uint balBeforeTrade = cScores.balanceOf(user1);
-        uint ethBalBefore = user1.balance;
-        uint scoresOwnBalanceBefore = cScores.balanceOf(address(cScores));
-
-        uint toV2PairTaxAmount = 598_798_804_797 * sellTaxes / divider;
-        uint fromV2PairTaxAmount = 598_798_804_797 * buyTaxes / divider;
-
-        uint[] memory getAmountsOut = uniswapV2Router.getAmountsOut(100000 * 1e9, path);
-
-        uniswapV2Router.swapExactETHForTokensSupportingFeeOnTransferTokens{
-            value: 100000 * 1e9
-        }(0, path, to, deadline);
-
-        uint balAfterTrade = cScores.balanceOf(user1);
-        uint ethBalAfter = user1.balance;
-        uint scoresOwnBalanceAfter = cScores.balanceOf(address(cScores));
-       
-        assertTrue(ethBalAfter < ethBalBefore);
-        assertTrue(balAfterTrade > balBeforeTrade);
-        assertEq(toV2PairTaxAmount, fromV2PairTaxAmount); // taxes are the same for buy and sell
-
-        assertEq(balAfterTrade, balBeforeTrade + 317_363_366_543);
-        assertEq(scoresOwnBalanceAfter, scoresOwnBalanceBefore + toV2PairTaxAmount);
-        assertEq(scoresOwnBalanceAfter, toV2PairTaxAmount);
-    }
-
-    function test_AutoSwapMemberFees() external {
-        address[] memory path = new address[](2);
-        path[0] = address(cScores);
-        path[1] = address(WETH);
-        cScores.transfer(user1, cScores.balanceOf(team0));
-        vm.stopPrank();
-        vm.startPrank(user1);
-        cScores.approve(address(uniswapV2Router), type(uint).max);
-
-        address to = payable(user1);
-        uint deadline = block.timestamp + 1000000000;
-
-        uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            cScores.balanceOf(user1) / 2,
-            0,
-            path,
-            to,
-            deadline
-        );
-
-        uint member2BalBefore = cScores.balanceOf(cScores.member2());
-        uint member3BalBefore = cScores.balanceOf(cScores.member3());
-        uint member4BalBefore = cScores.balanceOf(cScores.member4());
-        uint member5BalBefore = cScores.balanceOf(cScores.member5());
-        uint member6BalBefore = cScores.balanceOf(cScores.member6());
-        uint scoresBalBefore = cScores.balanceOf(address(cScores));
-
-       
-       uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            cScores.balanceOf(user1),
-            0,
-            path,
-            to,
-            deadline
-        );
-
-
-        uint member2BalAfter = cScores.balanceOf(cScores.member2());
-        uint member3BalAfter = cScores.balanceOf(cScores.member3());
-        uint member4BalAfter = cScores.balanceOf(cScores.member4());
-        uint member5BalAfter = cScores.balanceOf(cScores.member5());
-        uint member6BalAfter = cScores.balanceOf(cScores.member6());
-        uint scoresBalAfter = cScores.balanceOf(address(cScores));
-        
-        assertTrue(member2BalAfter > member2BalBefore);
-        assertTrue(member3BalAfter > member3BalBefore);
-        assertTrue(member4BalAfter > member4BalBefore);
-        assertTrue(member5BalAfter > member5BalBefore);
-        assertTrue(member6BalAfter > member6BalBefore);
-        assertTrue(scoresBalAfter > scoresBalBefore);
-     
-        console.log("Scores balance after 1st: ", scoresBalBefore);
-        console.log("Scores balance after 2nd: ", scoresBalAfter);
- 
-
-        /**
-        * AutoSwap won't execute on the first trade into the contract because
-        * the check is done at the start of the function with a zero balance. 
-        * This means that the contract won't autoSwap the taxes from the first trade,
-        * but it will autoSwap the taxes from the second trade. The balance is left higher
-        * because when autoSwapping the contract will take tax from it's own
-        * swap after the second trade so adding a from != address(this) check 
-        * would prevent this.
-        */
-    }
-
-    function test_ExcludedFromFees() external {
-        address[] memory path = new address[](2);
-        path[0] = address(cScores);
-        path[1] = address(WETH);
-
-        address to = payable(team0);
-        uint deadline = block.timestamp + 1000000000;
-        uint cScoresOwnBalBefore = cScores.balanceOf(address(cScores));
-
-        (bool feesExclude, bool canDoPreT) = cScores.isExcludedFromRestrictions(team0);
-
-        assertEq(feesExclude, true);
-        assertEq(canDoPreT, true);
-
-        uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            cScores.balanceOf(team0) / 2,
-            0,
-            path,
-            to,
-            deadline
-        );
-
-         uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            cScores.balanceOf(team0),
-            0,
-            path,
-            to,
-            deadline
-        );
-
-        uint cScoresOwnBalAfter = cScores.balanceOf(address(cScores));
-
-        uint balAfterTrade = cScores.balanceOf(team0);
-
-        assertEq(balAfterTrade, 0);
-        assertEq(cScoresOwnBalAfter, cScoresOwnBalBefore);
-    }
-
-
-    function test_ManualSendToTreasury() external {
-        address[] memory path = new address[](2);
-        path[0] = address(cScores);
-        path[1] = address(WETH);
-        cScores.transfer(user1, cScores.balanceOf(team0));
-        vm.stopPrank();
-        vm.startPrank(user1);
-        cScores.approve(address(uniswapV2Router), type(uint).max);
-
-        address to = payable(user1);
-        uint deadline = block.timestamp + 1000000000;
-
-        uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            cScores.balanceOf(user1) / 2,
-            0,
-            path,
-            to,
-            deadline
-        );
-
-        vm.stopPrank();
-
-        uint cScoresOwnBalBefore = cScores.balanceOf(address(cScores));
-        vm.prank(team0);
+        vm.expectRevert();
         cScores.manualSendToTreasury();
-        uint cScoresOwnBalAfter = cScores.balanceOf(address(cScores));
 
-        uint treasuryBal = cScores.balanceOf(address(cTreasury));
-
-        assertEq(cScoresOwnBalAfter, 0);
-        assertEq(treasuryBal, cScoresOwnBalBefore);
-    }
-
-    function test_WithdrawEth() external {
-        vm.deal(address(cScores), 50 ether);
-
-        assertEq(address(cScores).balance, 50 ether);
-
-        uint ownerBalBefore = cScores.owner().balance;
-        // Owner has 150 ether, deposits 50 into WETH and 50 into LP so has 50 left
-        assertEq(ownerBalBefore, 50 ether);
-
+        vm.expectRevert();
         cScores.withdrawETH();
 
-        uint ownerBalAfter = cScores.owner().balance;
-        // Owner has 100 ether including 50 from initSetup.Setup()
-        assertEq(ownerBalAfter, 100 ether);
+        vm.expectRevert();
+        cScores.changeTreasuryAddress(user0);
 
-        assertEq(address(cScores).balance, 0);
+        vm.expectRevert();
+        cScores.changeTaxes(99, 1);
+
+        vm.expectRevert();
+        cScores.changeSwapSettings(false, 10, 99, 1);
+
+        vm.expectRevert();
+        cScores.changeMaxTxAmount(1000000000000000000);
+
+        vm.expectRevert();
+        cScores.excludeFromFee(user0, true);
+
+        vm.expectRevert();
+        cScores.changeMaxWalletAmount(10000000000000000000);
+
+        vm.stopPrank();
     }
 
-    function test_ChangeTreasuryWallet() external {
-        address tAddr = address(cTreasury);
+    function test_cScores_WAuth() external {
+        vm.startPrank(team0);
 
-        assertEq(cScores.currentTreasury(), tAddr);
+        cScores.excludeFromFee(user0, true);
+        assertEq(cScores._isExcludedFromFee(user0), true);
 
-        cScores.changeTreasuryWallet(user1);
+        cScores.preLaunchTransfer(user1, true);
+        assertEq(cScores.canTransferBeforeLaunch(user1), true);
 
-        assertEq(cScores.currentTreasury(), user1);
-        assertTrue(cScores.currentTreasury() != tAddr);
+        cScores.transfer(user0, 100 * 1e9);
+        cScores.transfer(address(cTreasury), 1000 * 1e9);
+
+        cScores.launch();
+        assertEq(cScores.isItLaunched(), true);
+
+        cScores.manualSendToTreasury();
+        assertEq(cScores.balanceOf(address(cTreasury)), 1000 * 1e9);
+
+        vm.deal(address(cScores), 100 ether);
+        uint bal = team0.balance;
+        cScores.withdrawETH();
+        assertEq(team0.balance, bal + 100 ether);
+
+        cScores.changeTreasuryAddress(address(this));
+        assertEq(cScores.treasuryAddress(), address(this));
+
+        cScores.changeTaxes(99, 1);
+        assertEq(cScores.buyTaxes(), 99);
+        assertEq(cScores.sellTaxes(), 1);
+
+        cScores.changeSwapSettings(false, 10, 99, 1);
+        assertEq(cScores.autoSwapEnabled(), false);
+        assertEq(cScores.swapThrehold(), 10 * 1e9);
+        assertEq(cScores.treasuryShare(), 99);
+        assertEq(cScores.liquidityShare(), 1);
+
+        cScores.changeMaxTxAmount(1000000000000000000);
+        assertEq(cScores.maxTxAmount(), 1000000000000000000);
+
+        cScores.updatePair(user1);
+        assertEq(cScores.uniswapV2Pair(), address(user1));
+
+        cScores.changeMaxWalletAmount(10000000000000000000);
+        assertEq(cScores.maxWalletAmount(), 10000000000000000000);
+
+        vm.stopPrank();
+    }
+}
+
+contract ScoresDeepTest is InitSetup {
+    function setUp() public override {
+        super.setUp();
+        vm.startPrank(team0);
+        cScores.launch();
+        cScores.transfer(user0, 10_000 * 1e9);
+        cScores.transfer(user1, 10_000 * 1e9);
+        cScores.transfer(address(cTreasury), 1_000_000 * 1e9);
+
+        vm.deal(address(cTreasury), 5 ether);
+        vm.deal(user0, 2 ether);
+        vm.deal(user1, 2 ether);
+        vm.deal(team1, 2 ether);
+
+        vm.stopPrank();
     }
 
-    
+    //////////// Helpers ////////////
 
+    function tokensForEth(
+        address[] memory path,
+        uint amount,
+        address receiver
+    ) public {
+        Scores(payable(path[0])).approve(address(uniswapV2Router), amount);
+        uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+            amount,
+            0, // slippage 100%
+            path,
+            receiver,
+            block.timestamp
+        );
+    }
+
+    function ethForTokens(
+        address[] memory path,
+        uint amount,
+        address receiver
+    ) public {
+        WETH.approve(address(uniswapV2Router), amount);
+        uniswapV2Router.swapExactETHForTokensSupportingFeeOnTransferTokens{
+            value: amount
+        }(
+            0, // slippage 100%
+            path,
+            receiver,
+            block.timestamp
+        );
+    }
+
+    function spawnTradingActivity() public {
+        vm.deal(user1, 5 ether);
+        vm.deal(user0, 5 ether);
+        vm.deal(user1, 5 ether);
+        vm.prank(address(cTreasury));
+        cScores.transfer(address(cScores), 1_000_000 * 1e9);
+        address[] memory path = new address[](2);
+        path[1] = address(cScores);
+        path[0] = 0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd;
+
+        vm.prank(user1);
+        ethForTokens(path, 1 ether / 2, user1);
+        vm.prank(user0);
+        ethForTokens(path, 1 ether / 2, user0);
+        vm.prank(team1);
+        ethForTokens(path, 1 ether / 2, team1);
+        vm.prank(user1);
+        ethForTokens(path, 1 ether / 2, user1);
+        vm.prank(user0);
+        ethForTokens(path, 1 ether / 2, user0);
+        vm.prank(team1);
+        ethForTokens(path, 1 ether / 2, team1);
+        vm.prank(user1);
+        ethForTokens(path, 1 ether / 2, user1);
+        vm.prank(user0);
+        ethForTokens(path, 1 ether / 2, user0);
+        console.log("Max Wallet Limit reached");
+    }
+
+    //////////// Tests ////////////
+
+    function test_cScores_SellingFees() external {
+        vm.startPrank(user0);
+        address[] memory path = new address[](2);
+        path[0] = address(cScores);
+        path[1] = 0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd;
+
+        uint user0EthBal = user0.balance;
+        uint cScoresBal = cScores.balanceOf(address(cScores));
+        uint user0SBal = cScores.balanceOf(user0);
+        uint tradeSize = user0SBal / 2;
+
+        assertTrue(tradeSize < cScores.maxTxAmount());
+        assertTrue(tradeSize < cScores.maxWalletAmount());
+
+        /**
+            Pre Trade Balances:
+            CScores Bal: 0 score
+            User Scores bal: 10,000 score
+            User Eth Bal: 2 ether
+            Trade Size: 5,000 score
+            Trade Fee: 5,000 * 30 / 1000 = 150 score
+            Fee: 3%
+         */
+        tokensForEth(path, user0SBal / 2, user0);
+        /**
+            Post Trade Balances:
+            CScores Bal: 150 score
+            User Scores bal: 5,000 score
+            User Eth Bal: 2.0008 ether
+         */
+
+        assertTrue(user0.balance > user0EthBal);
+        assertEq(cScores.balanceOf(user0), user0SBal - tradeSize);
+        assertEq(
+            cScores.balanceOf(address(cScores)),
+            cScoresBal + ((tradeSize * 30) / 1000)
+        );
+    }
+
+    function test_cScores_BuyingFees() external {
+        vm.startPrank(user0);
+        address[] memory path = new address[](2);
+        path[0] = address(cScores);
+        path[1] = 0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd;
+
+        (path[0], path[1]) = (path[1], path[0]);
+
+        uint user0EthBal = user0.balance;
+        uint cScoresBal = cScores.balanceOf(address(cScores));
+        uint user0SBal = cScores.balanceOf(user0);
+        uint tradeSize = user0SBal / 2;
+
+        assertTrue(tradeSize < cScores.maxTxAmount());
+        assertTrue(tradeSize < cScores.maxWalletAmount());
+
+        /**
+            Pre Trade Balances:
+            CScores Bal: 0 score
+            User Scores bal: 10,000 score
+            User Eth Bal: 2 ether
+            Trade Size: 5,000 score
+            Trade Fee: 5,000 * 30 / 1000 = 150 score
+            Fee: 3%      
+         
+            Given an output asset amount and an array of token addresses, 
+            calculates all preceding minimum input token amounts by calling getReserves
+            for each pair of token addresses in the path in turn, and using these to call getAmountIn.
+            Useful for calculating optimal token amounts before calling swap.
+        */
+        uint amountsIn = uniswapV2Router.getAmountsIn(tradeSize, path)[0];
+        ethForTokens(path, amountsIn, user0);
+
+        assertTrue(user0.balance < user0EthBal);
+        assertEq(
+            cScores.balanceOf(user0),
+            user0SBal + tradeSize - ((tradeSize * 30) / 1000)
+        );
+        assertEq(
+            cScores.balanceOf(address(cScores)),
+            cScoresBal + ((tradeSize * 30) / 1000)
+        );
+    }
+
+    function test_cScores_OpenedAutoLiquidity() external {
+        address[] memory path = new address[](2);
+        path[0] = address(cScores);
+        path[1] = uniswapV2Router.WETH();       
+        
+        vm.prank(address(cTreasury));
+        cScores.transfer(address(cScores), 1_000_000 * 1e9);
+
+        vm.startPrank(team0);
+        uint initBal = address(cScores).balance;
+        uint cScoresbal = cScores.balanceOf(address(cScores));
+        uint pairbalance = cScores.balanceOf(address(uniV2Pair));
+        uint pairEth = WETH.balanceOf(address(uniV2Pair));
+        (uint112 r0, uint112 r1, uint32 timestamp) = uniV2Pair.getReserves();
+
+        assertEq(pairbalance, r0);
+        assertEq(pairEth, r1);
+
+        uint tForLiq = cScoresbal * 30 / 100;
+
+        uint half = tForLiq / 2;
+        cScores._swapTokensForEth(half);
+
+        uint newEthBal = address(cScores).balance;
+        assertGt(newEthBal, initBal);
+
+        (uint ethReserve, uint tokenReserve, ) = uniV2Pair.getReserves();
+        console.log("reserves: ", ethReserve, tokenReserve, timestamp);
+
+        cScores._addLiquidity(half, newEthBal - initBal);
+
+        (r0, r1, timestamp) = uniV2Pair.getReserves();
+        console.log("reserves: ", r0, r1, timestamp);
+
+        assertGt(r0, ethReserve);
+        assertGt(r1, tokenReserve);
+    }
+
+    function test_cScores_ClosedAutoLiquidity() external {
+        address[] memory path = new address[](2);
+        path[0] = address(cScores);
+        path[1] = uniswapV2Router.WETH();       
+        
+        vm.prank(address(cTreasury));
+        cScores.transfer(address(cScores), 1_000_000 * 1e9);
+
+        uint initBal = address(cScores).balance;
+        uint pairbalance = cScores.balanceOf(address(uniV2Pair));
+        uint pairEth = WETH.balanceOf(address(uniV2Pair));
+        uint ethPair = address(uniV2Pair).balance;
+        uint cScoresBal = cScores.balanceOf(address(cScores));
+        uint tForLiq = cScoresBal * 30 / 100;
+        (uint112 r0, uint112 r1, uint32 timestamp) = uniV2Pair.getReserves();
+
+        assertEq(pairbalance, r0);
+        assertEq(pairEth, r1);
+
+        vm.prank(address(cScores));
+
+        cScores.swapAndAddLiquidity(tForLiq);
+        (r0, r1, timestamp) = uniV2Pair.getReserves();
+
+        assertGt(r0, pairbalance);
+        uint newPairbalance = cScores.balanceOf(address(uniV2Pair));
+        uint newPairEth = WETH.balanceOf(address(uniV2Pair));
+        uint newScoresBal = cScores.balanceOf(address(cScores));
+        uint newEthPair = address(uniV2Pair).balance;
+
+        assertGt(newPairbalance, pairbalance);
+        assertLt(newScoresBal, cScoresBal);
+        assertEq(newPairbalance, r0);
+        assertEq(newPairEth, r1);
+    }
+
+    function test_cScores_TradingActivity() external {
+        uint initScoresBal = cScores.balanceOf(address(cScores));
+        uint initPairBal = cScores.balanceOf(address(uniV2Pair));
+        uint initPairEth = WETH.balanceOf(address(uniV2Pair));
+
+        spawnTradingActivity();
+
+        uint newScoresBal = cScores.balanceOf(address(cScores));
+        uint newPairBal = cScores.balanceOf(address(uniV2Pair));
+        uint newPairEth = WETH.balanceOf(address(uniV2Pair));
+
+        assertGt(newScoresBal, initScoresBal);    
+        assertLt(newPairBal, initPairBal);
+        assertGt(newPairEth, initPairEth);
+    }
+
+    function test_cScores_SwapforEthWithShares() external {
+        uint contractBal = 1_000_000 * 1e9;
+        uint treasuryShare = 70;
+        uint liquidityShare = 30;
+        uint tForLiq = contractBal * liquidityShare / 100;
+        uint tForTre = contractBal * treasuryShare / 100;
+        
+        assertEq(tForLiq, 300_000 * 1e9);
+        assertEq(tForTre, 700_000 * 1e9);
+        assertEq(cScores.balanceOf(address(cTreasury)), contractBal);
+
+        uint teamCoin = tForTre * 60 / 100;
+        uint allMembers = 6;
+        uint memberShare = teamCoin / allMembers;
+        assertEq(memberShare, teamCoin / 6);
+
+        vm.prank(address(cScores));
+        cTreasury.distributeFeeTokens(tForTre);
+
+        assertEq(cTreasury.totalTeamScorePaid(), memberShare * allMembers);
+        assertEq(cScores.balanceOf(cTreasury.teamMembers(1)), memberShare);
+        assertEq(cScores.balanceOf(cTreasury.teamMembers(2)), memberShare);
+        assertEq(cScores.balanceOf(cTreasury.teamMembers(3)), memberShare);
+        assertEq(cScores.balanceOf(cTreasury.teamMembers(4)), memberShare);
+        assertEq(cScores.balanceOf(cTreasury.teamMembers(5)), memberShare);
+    }
 
 }

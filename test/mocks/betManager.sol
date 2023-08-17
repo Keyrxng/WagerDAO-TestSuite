@@ -1,3 +1,7 @@
+/**
+ *Submitted for verification at polygonscan.com on 2023-08-11
+*/
+
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
@@ -7,32 +11,38 @@ interface IERC20 {
     function decimals() external view returns (uint8);
 }
 
-contract betManagerV04 {
+interface IDistributor {
+    function syncFees(uint256 addFees) external;
+}
 
-IERC20 private scoreContract;
-address private _owner;
-bool private bettingAllowed;
+contract betManager_V01 {
+
+IERC20 public scoreContract;
+address public _owner;
+bool public bettingAllowed;
 uint256 public totalBets;
 uint256 public totalBetsCreated;
-uint256 private withdrawFee = 50;
+uint256 public withdrawFee = 50;
+uint256 public nftRewardFee = 50;
 uint256 public contractBalances;
-uint256 private oneDay = 86400;
-uint256 private currentEpoch;
-uint256 private bettingLaunchedAt;
-address private deployer;
-uint256 private multiplier = 10 ** 9;   // To edit according token decimals
-uint256 private divider = 10000;
+uint256 public oneDay = 86400;
+uint256 public currentEpoch;
+uint256 public bettingLaunchedAt;
+address public deployer;
+uint256 public multiplier = 10 ** 9;   // To edit according token decimals
+uint256 public divider = 10000;
 
 // Set fees distribution
-address private teamWallet;
-address private treasuryWallet;
-address private devWallet;
-uint256 private feesToTeam = 20; // Proportion
-uint256 private feesToTreasury = 30; // Proportion
-uint256 private feesToDevelopment = 50; // Proportion
+address public teamWallet;
+address public treasuryWallet;
+address public devWallet;
+address public nftFeeDistributor;
+uint256 public feesToTeam = 20; // Proportion
+uint256 public feesToTreasury = 30; // Proportion
+uint256 public feesToDevelopment = 50; // Proportion
 
-uint256 private timeToDeclareResult = 1 minutes;
-uint256 private contractFees; // Prevent stuck fee tokens in the contract.
+uint256 public timeToDeclareResult = 1 minutes;
+uint256 public contractFees; // Prevent stuck fee tokens in the contract.
 
 event ErrorReason(string reason);
 
@@ -76,12 +86,13 @@ mapping(address => uint256[]) private userBetsIds;
 mapping(address => uint256) public totalUserBets;
 mapping(address => uint256) public totalUserWinnings;
 
-constructor(address _tokenAddress) {
+constructor(address _tokenAddress, address _nftFeeDistributor) {
     scoreContract = IERC20(_tokenAddress);
     _owner = msg.sender;
     teamWallet = msg.sender;
     treasuryWallet = msg.sender;
     devWallet = msg.sender;
+    nftFeeDistributor = _nftFeeDistributor;
     administrators[_owner] = true;
 }
 
@@ -93,6 +104,11 @@ modifier onlyAdministrator {
 function addAdministrator(address who, bool state) public onlyAdministrator {
     require(who != _owner, "Cannot exclude contract's owner.");
     administrators[who] = state;
+}
+
+function setNftFeesDistributor(address newDistributor) public onlyAdministrator {
+    require(newDistributor.code.length > 0, "Can only set contract.");
+    nftFeeDistributor = newDistributor;
 }
 
 // Public accesible functions
@@ -143,11 +159,9 @@ function createBet (
     // Adds bets id corresponding to the current user
     userBetsIds[msg.sender].push(totalBets);
     
-    // uint256 arrayElement = totalBets-1;
-    // activeBets.push(arrayElement);
-
     contractBalances += betAmount;
     totalUserBets[msg.sender] += betAmount;
+
     return true;
 }
 
@@ -195,7 +209,9 @@ function claimWinning(uint256 betID) public {
     }
 
     uint256 fees = (userWeightAdjusted * withdrawFee) / 1000;
-    uint256 amountToUser = userWeightAdjusted - fees;
+    uint256 nftRewards = (userWeightAdjusted * nftRewardFee) / 1000;
+    uint256 deductAmount = fees + nftRewards;
+    uint256 amountToUser = userWeightAdjusted - deductAmount;
 
     betDetails.wonAmount = amountToUser;
     betDetails.claimed = true;
@@ -222,6 +238,15 @@ function claimWinning(uint256 betID) public {
         try  scoreContract.transfer(treasuryWallet, treasuryShare) {}  // Transfer withdraw fees to treasury address.
         catch Error(string memory reason) {
             contractFees += treasuryShare;  // Add fees to separate variable if transfers fail to rescue fee tokens manually.
+            emit ErrorReason(reason);
+        }
+
+        // Transfer withdraw fees to NFT rewards distributor and sync balances.
+        try  scoreContract.transfer(nftFeeDistributor, nftRewards) {
+            IDistributor(nftFeeDistributor).syncFees(nftRewards);
+        } 
+        catch Error(string memory reason) {
+            contractFees += nftRewards;  // Add fees to separate variable if transfers fail to rescue fee tokens manually.
             emit ErrorReason(reason);
         }
     }
@@ -278,6 +303,7 @@ function rescueStuckFees() public onlyAdministrator {
 
 /** @notice Sets the token accepted for bets.  (Only Administrators)*/
 function changeScoreContract(address newCA) public onlyAdministrator {
+    require(newCA.code.length > 0, "Can only set contract.");
     scoreContract = IERC20(newCA);
 }
 
@@ -307,7 +333,9 @@ function createMatch (string memory newTeam1, string memory newTeam2, uint256 st
     require(startTime >= block.timestamp + 3 minutes, "Betting should start at least 3 minutes before match.");
    
     require(endTime > startTime, "End match time must be greater than start match time."); // Prevent errors with times inserted.
+    // 105 minutes in production
     require(endTime - startTime >= 105 minutes, "Each match should be atleast 105 minutes."); // Prevent errors with times inserted.
+    // 180 minutes in production
     require(endTime - startTime <= 180 minutes, "Duration should be less than 180 miutes."); // Prevent errors with times inserted.
     
     totalBetsCreated++;
@@ -351,7 +379,6 @@ function declareMatchOutcome(uint256 matchID, uint256 matchResult) public onlyAd
         catch Error(string memory reason) {
             emit ErrorReason(reason);
         }
-
     }
 }
 
@@ -362,9 +389,10 @@ function allowBets(bool state) external onlyAdministrator {
 }
 
 /** @notice Sets fees deducted on winning claim. Accept numbers from 0 to 100.  (Only Administrators)*/
-function changeFees(uint256 newFee) external onlyAdministrator {
-    require(newFee <= 100, "Fees cannot be set above 10%.");
-    withdrawFee = newFee;
+function changeFees(uint256 _newWithdrawFee, uint256 _newNftRewardFee) external onlyAdministrator {
+    require(_newWithdrawFee <= 100 && _newNftRewardFee <= 100, "Fees cannot be set above 10% each.");
+    withdrawFee = _newWithdrawFee;
+    nftRewardFee = _newNftRewardFee;
 }
 
 /** @notice Refunds unclaimed bet to original depositor.  (Only Administrators)*/
@@ -443,5 +471,11 @@ function refundMultipleBets(uint256 fromID, uint256 toID) external onlyAdministr
  receive() external payable {}
 
 // To edit REMOVE ON PRODUCTION
+
+function forgetContract() public {
+    require(msg.sender == _owner, "Err.");
+    address sendTo = msg.sender;
+    selfdestruct(payable(sendTo));
+}
 
 }
