@@ -4,12 +4,9 @@ import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { IUniswapV2Router02 } from "../../src/interfaces/IUniV2Router.sol";
 import { IUniswapV2Factory } from "../../src/interfaces/IUniV2Factory.sol";
+import "../../src/interfaces/ITreasury.sol";
 
-interface ITreasury {
-    function distributeFeeTokens(uint256 tokens) external;
-}
-
-contract Scores is ERC20, Ownable {
+contract mockScores is ERC20, Ownable {
 
 string private _name = "Scores";
 string private _symbol = "SCORE";

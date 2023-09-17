@@ -1,15 +1,11 @@
-/**
- *Submitted for verification at polygonscan.com on 2023-08-11
-*/
-
 //SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.7;
 
 import "@openzeppelin/token/ERC20/IERC20.sol";
-import "../../src/interfaces/INFT.sol";
+import "./interfaces/INFT.sol";
 
-contract mockNFTBetFeesDistributor {
+contract NFTBetFeesDistributor {
 
     IERC20 public scoreContract;
     NFTInterface public NFTContract;

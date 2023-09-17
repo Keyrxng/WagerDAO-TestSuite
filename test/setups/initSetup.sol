@@ -1,23 +1,23 @@
 import {Test} from "forge-std/Test.sol";
-import {Scores} from "../mocks/Scores.sol";
-import {WagerDAOTreasury} from "../mocks/Treasury.sol";
-import {betManager_V01} from "../mocks/betManager.sol";
-import {Wager_DAO_NFT} from "../mocks/WagerPass.sol";
-import {WagerDAO} from "../mocks/WagerDAO.sol";
-import {ERC20Mock} from "../mocks/ERC20Mock.sol";
+import {mockScores} from "../mocks/Scores.sol";
+import {mockWagerDAOTreasury} from "../mocks/Treasury.sol";
+import {mockBetManager_V01} from "../mocks/betManager.sol";
+import {mockWager_DAO_NFT} from "../mocks/WagerPass.sol";
+import {mockWagerDAO} from "../mocks/WagerDAO.sol";
+import {mockERC20Mock} from "../mocks/ERC20Mock.sol";
 import {IWETH} from "../../src/interfaces/IWETH.sol";
 import {IUniswapV2Pair} from "../../src/interfaces/IUniV2Pair.sol";
 import {IUniswapV2Router02} from "../../src/interfaces/IUniV2Router.sol";
 import {IUniswapV2Factory} from "../../src/interfaces/IUniV2Factory.sol";
-import {NFTBetFeesDistributor} from "../mocks/FeeDistributor.sol";
+import {mockNFTBetFeesDistributor} from "../mocks/FeeDistributor.sol";
 import "forge-std/Console.sol";
 
 contract InitSetup is Test {
-    Scores internal cScores;
-    WagerDAOTreasury internal cTreasury;
-    betManager_V01 internal cBetManager;
-    Wager_DAO_NFT internal cWagerPass;
-    NFTBetFeesDistributor internal cFeeDistro;
+    mockScores internal cScores;
+    mockWagerDAOTreasury internal cTreasury;
+    mockBetManager_V01 internal cBetManager;
+    mockWager_DAO_NFT internal cWagerPass;
+    mockNFTBetFeesDistributor internal cFeeDistro;
 
 
     IUniswapV2Router02 internal constant uniswapV2Router = IUniswapV2Router02(0xD99D1c33F9fC3444f8101754aBC46c52416550D1); //bsc testnet
@@ -42,14 +42,14 @@ contract InitSetup is Test {
         vm.deal(team0, 150 ether);
         vm.startPrank(team0);
 
-        cScores = new Scores(); //new deployment flow
-        cWagerPass = new Wager_DAO_NFT(); //new deployment flow
+        cScores = new mockScores(); //new deployment flow
+        cWagerPass = new mockWager_DAO_NFT(); //new deployment flow
 
-        cTreasury = new WagerDAOTreasury(address(cScores), address(cWagerPass));
+        cTreasury = new mockWagerDAOTreasury(address(cScores), address(cWagerPass));
 
-        cFeeDistro = new NFTBetFeesDistributor(address(cScores), address(cWagerPass)); //new deployment flow
+        cFeeDistro = new mockNFTBetFeesDistributor(address(cScores), address(cWagerPass)); //new deployment flow
         
-        cBetManager = new betManager_V01(address(cScores), address(cFeeDistro)); 
+        cBetManager = new mockBetManager_V01(address(cScores), address(cFeeDistro)); 
         
         cScores.setTreasury(address(cTreasury)); // required becaused of constructor errors of original design
         cWagerPass.setTreasury(address(cTreasury)); // required becaused of constructor errors of original design

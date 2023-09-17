@@ -8,7 +8,7 @@ import "@openzeppelin/governance/extensions/GovernorVotes.sol";
 import "@openzeppelin/governance/extensions/GovernorVotesQuorumFraction.sol";
 import "@openzeppelin/governance/extensions/GovernorTimelockControl.sol";
 
-contract WagerDAO is Governor, GovernorSettings, GovernorCountingSimple, GovernorVotes, GovernorVotesQuorumFraction, GovernorTimelockControl {
+contract mockWagerDAO is Governor, GovernorSettings, GovernorCountingSimple, GovernorVotes, GovernorVotesQuorumFraction, GovernorTimelockControl {
     constructor(IVotes _token, TimelockController _timelock)
         Governor("WagerDAO")
         GovernorSettings(1 /* 1 block */, 50400 /* 1 week */, 0)

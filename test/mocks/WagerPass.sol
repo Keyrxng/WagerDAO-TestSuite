@@ -10,14 +10,9 @@ import { ERC721Enumerable } from "@openzeppelin/token/ERC721/extensions/ERC721En
 import { ERC721URIStorage } from "@openzeppelin/token/ERC721/extensions/ERC721URIStorage.sol";
 import { AccessControl } from "@openzeppelin/access/AccessControl.sol";
 import { Counters } from "@openzeppelin/utils/Counters.sol";
+import "../../src/interfaces/ITreasury.sol";
 
-
-interface ITreasury {
-    function distributeETHfeeTokens(uint256 coins) external;
-    function failedEthTeamTokens(uint256 coins) external;
-}
-
-contract Wager_DAO_NFT is
+contract mockWager_DAO_NFT is
     ERC721,
     ERC721Enumerable,
     ERC721URIStorage,

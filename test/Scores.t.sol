@@ -1,7 +1,6 @@
 import {Test} from "forge-std/Test.sol";
 import "forge-std/Console.sol";
 import {InitSetup} from "./setups/initSetup.sol";
-import {Scores} from "./mocks/Scores.sol";
 
 contract ScoresBasicTest is InitSetup {
     function setUp() public override {
@@ -153,7 +152,7 @@ contract ScoresDeepTest is InitSetup {
         uint amount,
         address receiver
     ) public {
-        Scores(payable(path[0])).approve(address(uniswapV2Router), amount);
+        cScores.approve(address(uniswapV2Router), amount);
         uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
             amount,
             0, // slippage 100%

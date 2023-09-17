@@ -5,25 +5,10 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
-interface IERC20 {
-    function balanceOf(address account) external view returns (uint256);
-    function transfer(address recipient, uint256 amount) external returns (bool);
-    function approve(address spender, uint256 amount) external returns (bool);
-}
+import "@openzeppelin/token/ERC20/IERC20.sol";
+import {IUniswapV2Router02} from "../../src/interfaces/IUniV2Router.sol";
 
-interface IUniswapV2Router02 {
-    function factory() external pure returns (address);
-    function WETH() external pure returns (address);
-    function swapExactTokensForETHSupportingFeeOnTransferTokens(
-        uint amountIn,
-        uint amountOutMin,
-        address[] calldata path,
-        address to,
-        uint deadline
-    ) external;
-}
-
-contract WagerDAOTreasury {
+contract mockWagerDAOTreasury {
     address public owner;
     address public receiver;
     address public scoreToken;

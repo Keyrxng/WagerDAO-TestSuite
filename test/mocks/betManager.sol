@@ -2,17 +2,10 @@
 pragma solidity ^0.8.7;
 
 import "forge-std/Console.sol";
-interface IERC20 {
-    function transfer(address recipient, uint256 amount) external returns (bool);
-    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
-    function decimals() external view returns (uint8);
-}
+import "@openzeppelin/token/ERC20/IERC20.sol";
+import "../../src/interfaces/IDistro.sol";
 
-interface IDistributor {
-    function syncFees(uint256 addFees) external;
-}
-
-contract betManager_V01 {
+contract mockBetManager_V01 {
 
 IERC20 public scoreContract;
 address public _owner;
