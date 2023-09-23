@@ -37,9 +37,9 @@ contract WagerDAOTreasury {
     constructor(address _scoreToken, address _NFT) {
 
     // // Polygon Mumbai testnet
-    // if(block.chainid == 80001) {
-    //    routerAddress = 0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506;
-    // }
+    if(block.chainid == 80001) {
+       routerAddress = 0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506;
+    }
     // // BSC Testnet
     //  if(block.chainid == 97) {
     //     routerAddress = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1; 
